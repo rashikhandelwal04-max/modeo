@@ -7,7 +7,7 @@ import PhotoSetup from "@/components/PhotoSetup";
 import { Icon, Modal } from "@/components/ui";
 import { useApp } from "@/lib/store/state";
 import { getImage, putImage, useImage } from "@/lib/store/images";
-import { freeImageUrl, genImageId, getGarmentImage } from "@/lib/garmentImage";
+import { genImageId, getGarmentImage } from "@/lib/garmentImage";
 import { productPrompt } from "@/lib/stylist";
 import { lookDescription } from "@/lib/styling/engine";
 import { downloadDataUrl, resizeDataUrl } from "@/lib/image";
@@ -38,8 +38,8 @@ async function garmentImageFor(p: Piece): Promise<string | undefined> {
   if (p.garment.imageId) return getImage(p.garment.imageId);
   if (p.garment.imageUrl?.startsWith("https://")) return p.garment.imageUrl;
   const prompt = productPrompt({ ...p.garment, shadeHex: undefined });
-  // Replicate-generated (cached) product photo, otherwise the free photoreal image service (https URL)
-  return (await getImage(genImageId(prompt))) ?? (await getGarmentImage(prompt)) ?? freeImageUrl(prompt);
+  // the same Replicate-generated product photo the user picked (cached on this device)
+  return (await getImage(genImageId(prompt))) ?? (await getGarmentImage(prompt)).src ?? undefined;
 }
 
 function FittingRoom() {

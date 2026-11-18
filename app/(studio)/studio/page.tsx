@@ -13,7 +13,7 @@ import { putImage } from "@/lib/store/images";
 import { dominantColor, fileToDataUrl, resizeDataUrl } from "@/lib/image";
 import { makeGarment, parseGarmentText } from "@/lib/parse";
 import { IMAGES, OCCASIONS } from "@/lib/editorial";
-import { freeImageUrl, useGarmentImage } from "@/lib/garmentImage";
+import { useGarmentImage } from "@/lib/garmentImage";
 import { COLORS, hexOf, nearestColor, cap } from "@/lib/colors";
 import { categoryLabel, roleOf } from "@/lib/taxonomy";
 import {
@@ -68,23 +68,14 @@ const PIECE_TYPES: { cat: Category; label: string }[] = [
 const POSES = ["Standing", "Walking", "Hand on hip", "Seated", "Over the shoulder"];
 const BASE_COLORS = COLORS.filter((c) => c.name !== "pearl");
 
-/** Stage C: the selected clothes shown together on a realistic (generated) model. */
+/** Stage C: the selected clothes shown together on a realistic generated model (Replicate). */
 function ModelView({ anchor, picks, shoe, acc, pose }: { anchor: Garment; picks: Option[]; shoe: Option | null; acc: Option[]; pose?: string }) {
-  const { status } = useApp();
   const [who, setWho] = useState<"woman" | "man">("woman");
-  const [failed, setFailed] = useState(false);
   const items = [anchor.name, ...picks.map((p) => p.name), shoe?.name, ...acc.map((a) => a.name)].filter(Boolean).map((x) => x!.toLowerCase()).join(", ");
   const prompt = `Full-length photorealistic fashion campaign photograph of a stylish ${who === "woman" ? "female" : "male"} model wearing exactly these clothes: ${items}. ${pose ? `Pose: ${pose.toLowerCase()}.` : "Standing naturally."} Minimalist light grey studio, soft natural light, realistic fabric and fit, sharp focus, head to toe in frame, no text.`;
-  const replicate = !!status?.imageGen;
-  const gen = useGarmentImage(replicate ? prompt : undefined, replicate);
-  const src = replicate ? gen.src : status ? freeImageUrl(prompt, 768, 1152) : null;
-  useEffect(() => setFailed(false), [src]);
   return (
     <figure className="model-view">
-      <div className={cx("gphoto", (gen.loading || !src) && !failed && "loading")} style={{ aspectRatio: "2 / 3" }}>
-        {src && !failed && <img key={src} src={src} alt="The outfit on a model" onError={() => setFailed(true)} />}
-        {failed && <div className="gphoto-fail"><span>The model photo couldn&apos;t load.</span></div>}
-      </div>
+      <GarmentPhoto g={{ name: "The outfit on a model" }} prompt={prompt} className="model-photo" />
       <figcaption>
         <span className="eyebrow">On a model</span>
         <span className="seg"><button className={cx(who === "woman" && "on")} onClick={() => setWho("woman")}>Woman</button><button className={cx(who === "man" && "on")} onClick={() => setWho("man")}>Man</button></span>
