@@ -26,7 +26,7 @@ export async function generateGarmentImage(prompt: string, seed: number): Promis
   const hit = cache.get(key);
   if (hit) return { image: hit, cached: true, provider: imageProvider() ?? "" };
   if (imageProvider() === "cloudflare") {
-    const image = await cloudflare(prompt, seed);
+    const image = await cloudflare(prompt);
     if (cache.size > 200) cache.clear();
     cache.set(key, image);
     return { image, cached: false, provider: "cloudflare" };
@@ -56,12 +56,14 @@ export async function generateGarmentImage(prompt: string, seed: number): Promis
   return { image, predictionId: data.id, cached: false, provider: "replicate" };
 }
 
-async function cloudflare(prompt: string, seed: number): Promise<string> {
+async function cloudflare(prompt: string): Promise<string> {
   const base = process.env.CLOUDFLARE_API_BASE || "https://api.cloudflare.com";
   const res = await fetch(`${base}/client/v4/accounts/${encodeURIComponent(cfAccount())}/ai/run/@cf/black-forest-labs/flux-1-schnell`, {
     method: "POST",
     headers: { Authorization: `Bearer ${cfToken()}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt: prompt.slice(0, 2000), steps: 6, seed }),
+    // flux-1-schnell on Workers AI accepts only `prompt` and `steps` (a `seed` field is rejected with error 5006).
+    // Each call is randomly seeded by Cloudflare, so "New photo" still returns a different image.
+    body: JSON.stringify({ prompt: prompt.slice(0, 2000), steps: 6 }),
     signal: AbortSignal.timeout(55000),
   });
   const data = (await res.json().catch(() => ({}))) as { success?: boolean; result?: { image?: string }; errors?: { code?: number; message?: string }[] };
@@ -69,6 +71,7 @@ async function cloudflare(prompt: string, seed: number): Promise<string> {
   if (res.status === 401 || res.status === 403 || /authentication|unauthorized|10000/i.test(msg)) throw new ImageGenError("Cloudflare rejected the token or account ID (check CLOUDFLARE_API_TOKEN has Workers AI permission and CLOUDFLARE_ACCOUNT_ID is correct).", 401);
   if (/4006|daily free allocation|neurons/i.test(msg)) throw new ImageGenError("Today's free Cloudflare image allowance is used up. It resets daily (00:00 UTC).", 429, 3600);
   if (res.status === 429) throw new ImageGenError("Cloudflare rate limit reached.", 429, Number(res.headers.get("retry-after")) || 10);
+  if (res.status === 400) console.error("[garment-image] cloudflare 400 body:", JSON.stringify(data).slice(0, 500));
   if (!res.ok || !data.success || !data.result?.image) throw new ImageGenError(`Cloudflare error ${res.status}${msg ? `: ${msg}` : ""}`, 502);
   return `data:image/jpeg;base64,${data.result.image}`;
 }
