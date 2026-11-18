@@ -115,57 +115,47 @@ export default function FittingRoom() {
             : (
               <div className="stage-empty">
                 <div className="stack" style={{ justifyItems: "center" }}>
-                  <span className="eyebrow" style={{ color: "#9a9a9a" }}>Optional</span>
-                  <p className="mega" style={{ fontSize: "clamp(40px, 5vw, 72px)", margin: 0 }}>Step on<br /><em style={{ textTransform: "none" }}>stage.</em></p>
-                  <p className="small" style={{ maxWidth: "34ch", color: "#bbb", margin: 0 }}>Add a full-length photo to preview looks on yourself. Without one, you can still explore and save every look.</p>
-                  <button className="btn light" onClick={() => setPhotoModal(true)}>Add my photo</button>
+                  <button className="btn" onClick={() => setPhotoModal(true)}>Add your photo</button>
+                  <span className="eyebrow">Optional</span>
                 </div>
               </div>
             )}
           {(phase === "starting" || phase === "processing") && (
-            <div className="loader"><div><div className="eyebrow" style={{ color: "#ddd" }}>{phase === "starting" ? "Preparing" : `Generating with ${providerLabel}`}</div><div className="display h-sm" style={{ marginTop: 8 }}>Dressing you in {look?.title}</div><div className="bar" /></div></div>
+            <div className="loader"><div><div className="eyebrow">{phase === "starting" ? "Preparing" : "Generating"}</div><div className="bar" /></div></div>
           )}
-          {person && phase !== "done" && <span className="lbl" style={{ left: 14 }}>Your photograph · original</span>}
+          
         </div>
       </section>
 
       <aside className="fit-side">
-        <div>
-          <span className="eyebrow">MY GALA</span>
-          <h1 className="display h-lg" style={{ margin: "6px 0 0" }}>The Fitting <em>Room.</em></h1>
-        </div>
-        <div className="row">
-          {live ? <span className="tag dark">Provider · {status?.tryOn === "fashn" ? "FASHN" : "Replicate"}</span> : <span className="tag warn">Demo mode · no try-on provider connected</span>}
-        </div>
+        <h1 className="display h-md">Fitting Room</h1>
 
         {(phase === "demo" || (!live && phase === "idle")) && (
           <div className="demo-banner">
             <b>Demo mode</b>
-            <span>No try-on image is generated in demo mode. MY GALA never fakes a try-on by laying clothes over your photo. Real try-on uses a specialised service (FASHN or Replicate) that is told to keep your face, body proportions, skin tone and pose.</span>
-            {reason && phase === "demo" && <span className="tiny">{reason}</span>}
+            <span>Try-on isn&apos;t connected yet, so no image is generated.</span>
           </div>
         )}
         {phase === "unsupported" && <div className="demo-banner"><b>Needs a garment photo</b><span>{reason}</span></div>}
         {phase === "error" && <div className="demo-banner" style={{ borderColor: "var(--danger)", color: "var(--danger)" }}><b>Try-on failed</b><span>{error}</span></div>}
-        {phase === "done" && <p className="tiny muted" style={{ margin: 0 }}>AI visualisation by {providerLabel}. It suggests how the outfit could look; it can&apos;t guarantee exact fit, colour or appearance.</p>}
+        {phase === "done" && <p className="tiny muted" style={{ margin: 0 }}>AI preview — fit and colour may vary.</p>}
 
         <div className="stack-sm">
-          <span className="eyebrow">Your photo</span>
+          <span className="eyebrow">Photo</span>
           <div className="row">
             <button className="btn ghost sm" onClick={() => setPhotoModal(true)}><Icon name="camera" size={13} /> {photo ? "Replace" : "Upload"}</button>
             {photo && <button className="btn ghost sm" onClick={async () => { await setPhoto(null); setResult(null); setPhase("idle"); toast("Your photo was deleted from this device."); }}><Icon name="trash" size={13} /> Delete</button>}
           </div>
-          <span className="tiny muted">Stored only on this device. Sent to the try-on service only when you press Generate.</span>
+          <span className="tiny muted">Stays on this device.</span>
         </div>
 
         {look ? (
           <div className="stack-sm">
-            <span className="eyebrow">On the rail · {DIRECTION_LABEL[look.direction]}</span>
-            <div className="panel" style={{ aspectRatio: "4/3.4" }}><LookBoard pieces={look.pieces} annotations={look.annotations} /></div>
-            <div className="small">{look.pieces.map((p) => p.garment.name).join(" · ")}</div>
+            <span className="eyebrow">Look</span>
+            <div style={{ aspectRatio: "4/3.4", background: "var(--soft)" }}><LookBoard pieces={look.pieces} compact /></div>
             <div className="row">
               <button className="btn" onClick={() => generate(look)} disabled={phase === "starting" || phase === "processing"}>
-                <Icon name={phase === "done" ? "refresh" : "sparkle"} /> {phase === "done" ? "Regenerate" : !person ? "Add photo to preview" : live ? "Generate try-on" : "Generate (demo)"}
+                <Icon name={phase === "done" ? "refresh" : "sparkle"} /> {phase === "done" ? "Again" : !person ? "Add photo" : "Generate"}
               </button>
               {phase === "done" && result && (
                 <>
@@ -178,14 +168,13 @@ export default function FittingRoom() {
           </div>
         ) : (
           <div className="stack-sm">
-            <p className="pull-quote" style={{ margin: 0 }}>Nothing on the rail yet.</p>
-            <div className="row"><Link href="/edits" className="btn sm">Open an edit</Link><Link href="/studio" className="btn ghost sm">Go to the studio</Link></div>
+            <div className="row"><Link href="/edits" className="btn sm">Edits</Link><Link href="/studio" className="btn ghost sm">Studio</Link></div>
           </div>
         )}
 
         {variants.length > 1 && (
           <div className="stack-sm">
-            <span className="eyebrow">Also on the rail</span>
+            <span className="eyebrow">More looks</span>
             <div className="variants">
               {variants.map((v) => (
                 <button key={v.id} className={cx("variant", v.id === look?.id && "on")} onClick={() => pick(v)}>
@@ -199,7 +188,7 @@ export default function FittingRoom() {
       </aside>
 
       <Modal open={photoModal} onClose={() => setPhotoModal(false)}>
-        <div className="between" style={{ marginBottom: 16 }}><h2 className="display h-md" style={{ margin: 0 }}>Your photograph</h2><button className="icon-btn" aria-label="Close" onClick={() => setPhotoModal(false)}><Icon name="close" /></button></div>
+        <div className="between" style={{ marginBottom: 16 }}><h2 className="display h-sm" style={{ margin: 0 }}>Your photo</h2><button className="icon-btn" aria-label="Close" onClick={() => setPhotoModal(false)}><Icon name="close" /></button></div>
         <PhotoSetup submitLabel="Save photo" onComplete={() => { setPhotoModal(false); setResult(null); setPhase("idle"); toast("Photo saved on this device."); }} />
       </Modal>
     </main>

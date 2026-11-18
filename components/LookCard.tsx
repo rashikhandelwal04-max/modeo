@@ -1,5 +1,5 @@
 "use client";
-import LookBoard, { isBigPiece } from "./LookBoard";
+import LookBoard from "./LookBoard";
 import { EngineBadge, Icon } from "./ui";
 import { DIRECTION_LABEL } from "@/lib/styling/engine";
 import { categoryLabel } from "@/lib/taxonomy";
@@ -42,10 +42,7 @@ export default function LookCard({
           </div>
         </div>
         {showEngine && <EngineBadge engine={look.engine} />}
-        {(() => {
-          const extra = look.annotations.filter((a) => { const p = look.pieces.find((x) => x.slot === a.slot); return p && !isBigPiece(p, look.pieces); });
-          return extra.length ? <div className="hand-notes">{extra.map((a) => <span key={a.slot}>→ {a.text}</span>)}</div> : null;
-        })()}
+
 
         <div className="pieces">
           {look.pieces.map((p) => (
@@ -67,25 +64,15 @@ export default function LookCard({
           ))}
         </div>
 
-        <ul className="why">
-          {look.why.map((w, i) => {
-            const [h, ...rest] = w.split(":");
-            return <li key={i}>{rest.length ? <><b>{h}:</b>{rest.join(":")}</> : w}</li>;
-          })}
-        </ul>
-        {look.notes && (
-          <div className="stack-sm">
-            {look.notes.map((n) => <div key={n} className="hand" style={{ fontSize: 19, lineHeight: 1.1 }}>{n}</div>)}
-          </div>
-        )}
-        <div className="row small">
-          <span className="eyebrow" style={{ fontSize: 10 }}>Wear it to</span>
-          {look.occasions.map((o) => <span key={o} className="tag">{o}</span>)}
-        </div>
+        <details className="why-toggle"><summary>Why it works +</summary><ul className="why">
+          {look.why.map((w, i) => <li key={i}>{w}</li>)}
+        </ul></details>
+
+
 
         <div className="card-actions">
-          {onTryOn && <button className="btn" onClick={() => onTryOn(look)}><Icon name="mirror" /> Try this look on me</button>}
-          {onOpenPanel && <button className="btn ghost" onClick={() => onOpenPanel(look)}>Play with it</button>}
+          {onTryOn && <button className="btn" onClick={() => onTryOn(look)}><Icon name="mirror" size={14} /> Try on</button>}
+          {onOpenPanel && <button className="btn ghost" onClick={() => onOpenPanel(look)}>Style it</button>}
           {onSave && (
             <button className={cx("icon-btn", saved && "dark")} style={{ width: 44, height: 44 }} aria-label={saved ? "Saved" : "Save look"} title={saved ? "Saved" : "Save look"} onClick={() => !saved && onSave(look)}>
               <Icon name="heart" />

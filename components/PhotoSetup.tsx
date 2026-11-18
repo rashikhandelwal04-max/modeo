@@ -52,16 +52,16 @@ export default function PhotoSetup({ onComplete, onSkip, submitLabel = "Enter my
         <>
           <label
             className={cx("drop", over && "over")}
-            style={{ minHeight: 280 }}
+            style={{ minHeight: 180 }}
             onDragOver={(e) => { e.preventDefault(); setOver(true); }}
             onDragLeave={() => setOver(false)}
             onDrop={(e) => { e.preventDefault(); setOver(false); pick(e.dataTransfer.files?.[0]); }}
           >
             <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => pick(e.target.files?.[0])} aria-label="Upload a full-length photograph" />
             <div className="stack" style={{ justifyItems: "center" }}>
-              <Icon name="camera" size={28} stroke={1.1} />
-              <div className="display h-sm">Upload a full-length photograph</div>
-              <div className="small muted">Drag &amp; drop, or click to choose from your device · JPEG, PNG or WebP</div>
+              <Icon name="camera" size={22} stroke={1.1} />
+              <span className="eyebrow" style={{ color: "var(--ink)" }}>Upload photo</span>
+              <span className="tiny muted">JPEG, PNG or WebP</span>
             </div>
           </label>
           <PrivacyNote />
@@ -84,20 +84,19 @@ export default function PhotoSetup({ onComplete, onSkip, submitLabel = "Enter my
             </div>
           </div>
           <div className="stack" style={{ flex: 1, minWidth: 240 }}>
-            <div className="eyebrow">Before we continue</div>
+            
             <label className="check">
               <input type="checkbox" checked={own} onChange={(e) => setOwn(e.target.checked)} />
-              <span>This is a photograph of me, or I have the permission of the person pictured to use it.</span>
+              <span>This is me, or I have permission to use this photo.</span>
             </label>
             <label className="check">
               <input type="checkbox" checked={process} onChange={(e) => setProcess(e.target.checked)} />
-              <span>I consent to MY GALA processing this photo to create try-on previews. It is sent to the try-on provider only when I press <i>Generate</i>.</span>
+              <span>I agree to MY GALA using this photo for try-on previews.</span>
             </label>
             <label className="check" style={{ opacity: 0.85 }}>
               <input type="checkbox" checked={training} onChange={(e) => setTraining(e.target.checked)} />
               <span className="small">
-                <b>Optional, separate:</b> allow my photo to be used to improve models in future. Off by default — MY GALA does not currently train on any photographs, and this is never assumed.
-              </span>
+                Optional: allow use for improving models (off by default).</span>
             </label>
             <PrivacyNote compact />
             <div className="row">
@@ -112,7 +111,7 @@ export default function PhotoSetup({ onComplete, onSkip, submitLabel = "Enter my
 
       {onSkip && (
         <button className="link-btn" style={{ justifySelf: "start", color: "var(--stone)" }} onClick={onSkip}>
-          Skip for now — explore styling without a photo
+          Skip for now
         </button>
       )}
     </div>

@@ -5,139 +5,78 @@ import { useRouter } from "next/navigation";
 import EditorialImage from "./EditorialImage";
 import LookBoard from "./LookBoard";
 import StylePanel from "./StylePanel";
-import { EngineBadge, Icon } from "./ui";
 import { useApp } from "@/lib/store/state";
-import { editBySlug, IMAGES, type Chapter, type EditSlug } from "@/lib/editorial";
-import { DIRECTION_LABEL, generateLooks, type EngineInput } from "@/lib/styling/engine";
+import { editBySlug, IMAGES } from "@/lib/editorial";
+import { generateLooks, type EngineInput } from "@/lib/styling/engine";
 import { makeGarment, parseGarmentText } from "@/lib/parse";
 import type { Direction, Garment, Look } from "@/lib/types";
 import { cx, hashStr } from "@/lib/util";
 import { roleOf } from "@/lib/taxonomy";
 
-const ORDER: Record<EditSlug, Direction[]> = {
-  daily: ["casual", "minimal", "contemporary", "bold"],
-  statement: ["bold", "contemporary", "casual", "minimal"],
-  classic: ["minimal", "contemporary", "casual", "bold"],
-  desi: ["contemporary", "minimal", "bold", "casual"],
-  yours: ["contemporary", "minimal", "casual", "bold"],
-};
+const SHORT: Record<Direction, string> = { minimal: "Minimal", casual: "Easy", bold: "Bold", contemporary: "Modern" };
+const SAMPLE = ["White cotton shirt", "Blue straight-fit jeans", "Black wide-leg trousers", "Beige trench coat", "Black saree with gold detailing", "Black leather loafers", "Gold hoop earrings"];
 
 export default function EditView({ slug }: { slug: string }) {
   const edit = editBySlug(slug);
-  const { wardrobe, profile, saved, set, saveLook, toast, addWardrobe } = useApp();
+  const { wardrobe, profile, set, addWardrobe, toast } = useApp();
   const router = useRouter();
-  const [ci, setCi] = useState(0);
-  const [li, setLi] = useState(0);
+  const [pi, setPi] = useState(0);
   const [shuffle, setShuffle] = useState(0);
-  const [panel, setPanel] = useState<{ look: Look; slot?: string } | null>(null);
+  const [open, setOpen] = useState<Look | null>(null);
 
-  // Your Own Edit is built from the wardrobe: each clothing piece becomes a chapter
-  const owned = wardrobe.filter((w) => !["footwear", "jewellery", "bag", "accessory"].includes(roleOf(w.category)));
-  const chapters: (Chapter & { garment?: Garment })[] = useMemo(() => {
+  const pieces: { id: string; label: string; garment: Garment; owned: boolean }[] = useMemo(() => {
     if (!edit) return [];
-    if (edit.slug !== "yours") return edit.chapters;
-    return owned.slice(0, 6).map((w, i) => ({ id: w.id, label: w.name, anchor: w.name, note: i === 0 ? "Built only from what you own." : "Same piece. New story.", garment: w }));
-  }, [edit, owned]);
+    if (edit.slug === "mine") {
+      return wardrobe.filter((w) => !["footwear", "jewellery", "bag", "accessory"].includes(roleOf(w.category))).slice(0, 8)
+        .map((w) => ({ id: w.id, label: w.name, garment: w, owned: true }));
+    }
+    return edit.pieces.map((p) => ({ id: p.id, label: p.label, owned: false, garment: makeGarment({ ...parseGarmentText(p.anchor), name: p.anchor, id: `edit-${slug}-${p.id}` } as never) }));
+  }, [edit, wardrobe, slug]);
 
-  const chapter = chapters[Math.min(ci, Math.max(0, chapters.length - 1))];
-  const input: EngineInput | null = useMemo(() => {
-    if (!chapter) return null;
-    const anchor = chapter.garment ?? makeGarment({ ...parseGarmentText(chapter.anchor), name: chapter.anchor, id: `edit-${slug}-${chapter.id}` } as never);
-    return { anchor, anchorOwned: !!chapter.garment, nudges: chapter.nudges, occasion: chapter.occasion, wardrobe, profile, mode: slug === "yours" ? "wardrobe" : "explore" };
-  }, [chapter, slug, wardrobe, profile]);
-  const looks = useMemo(() => (input && edit ? generateLooks({ ...input, directions: ORDER[edit.slug], seed: hashStr(slug + chapter!.id) + shuffle * 7919 }) : []), [input, edit, slug, chapter, shuffle]);
-  const look = looks[Math.min(li, looks.length - 1)];
+  const cur = pieces[Math.min(pi, Math.max(0, pieces.length - 1))];
+  const input: EngineInput | null = useMemo(() => (cur && edit ? {
+    anchor: cur.garment, anchorOwned: cur.owned, nudges: edit.nudges, occasion: edit.occasion, wardrobe, profile, mode: edit.slug === "mine" ? "wardrobe" : "explore",
+  } : null), [cur, edit, wardrobe, profile]);
+  const looks = useMemo(() => (input ? generateLooks({ ...input, seed: hashStr(slug + cur!.id) + shuffle * 7919 }) : []), [input, slug, cur, shuffle]);
 
-  if (!edit) return <div className="page"><p>That edit doesn&apos;t exist. <Link href="/edits" className="link-btn">See all edits</Link></p></div>;
-
+  if (!edit) return <main className="page"><Link href="/edits" className="link-btn">All edits</Link></main>;
   const tryOn = (l: Look) => { set({ tryOn: { look: l, variants: looks } }); router.push("/try-on"); };
-  const toStudio = () => { if (input) { set({ studio: { anchor: input.anchor, anchorOwned: input.anchorOwned, looks, occasion: input.occasion } }); router.push("/studio"); } };
 
   return (
-    <main className={`edit-page edit-theme-${edit.slug} fade-in`}>
-      <aside className="edit-side">
-        <div className="between">
-          <Link href="/edits" className="eyebrow">← All edits</Link>
-          <span className="eyebrow">MY GALA · Edit {edit.number}/05</span>
-        </div>
-        <div className="edit-num">{edit.number}</div>
-        <h1 className="display edit-title">{edit.title[0]} <em>{edit.title[1]}</em></h1>
-        <p className="kicker" style={{ margin: 0 }}>{edit.kicker}</p>
-        <p className="small" style={{ margin: 0, maxWidth: "44ch", opacity: 0.85 }}>{edit.intro}</p>
+    <main className="fade-in">
+      <section className="edit-hero">
+        <EditorialImage src={IMAGES[edit.image]} alt={edit.name} fallback={edit.fallback} />
+        <h1>{edit.name}</h1>
+      </section>
 
-        {chapters.length > 0 ? (
-          <div className="chapters" role="tablist" aria-label="Chapters">
-            {chapters.map((c, i) => (
-              <button key={c.id} role="tab" aria-selected={i === ci} className={cx("chapter", i === ci && "on")} onClick={() => { setCi(i); setLi(0); }}>
-                <span className="n">{String(i + 1).padStart(2, "0")}</span>
-                <span className="t">{c.label}</span>
-                <span className="arrow"><Icon name="arrow" size={14} /></span>
+      {pieces.length > 0 ? (
+        <>
+          <div className="edit-bar">
+            <div className="tabs" role="tablist">
+              {pieces.map((p, i) => <button key={p.id} role="tab" aria-selected={i === pi} className={cx("tab", i === pi && "on")} onClick={() => setPi(i)}>{p.label}</button>)}
+            </div>
+            <button className="link-btn" onClick={() => setShuffle((s) => s + 1)}>Shuffle</button>
+          </div>
+          <div className="look-grid">
+            {looks.map((l, i) => (
+              <button key={l.id} className="look-tile" onClick={() => setOpen(l)}>
+                <div className="frame"><LookBoard pieces={l.pieces} compact /></div>
+                <div className="cap"><b>Look {String(i + 1).padStart(2, "0")}</b><span>{SHORT[l.direction]}</span></div>
               </button>
             ))}
           </div>
-        ) : (
-          <div className="stack">
-            <p className="pull-quote" style={{ margin: 0 }}>Your edit begins with your wardrobe.</p>
-            <div className="row">
-              <Link href="/wardrobe" className="btn">Add my clothes</Link>
-              <button className="btn ghost" onClick={() => { const items = ["White cotton shirt", "Blue straight-fit jeans", "Black wide-leg trousers", "Beige trench coat", "Black saree with gold detailing", "Black leather loafers", "Gold hoop earrings"].map((t) => ({ ...makeGarment({ ...parseGarmentText(t), name: t }), addedAt: Date.now(), sample: true })); addWardrobe(items); toast("Sample wardrobe added — marked as samples."); }}>Use a sample wardrobe</button>
-            </div>
-          </div>
-        )}
-
-        {edit.slug === "yours" && saved.length > 0 && (
-          <div className="stack-sm">
-            <span className="eyebrow">Also yours</span>
-            <Link href="/looks" className="row small" style={{ gap: 8 }}><b style={{ fontWeight: 400 }}>{saved.length} saved looks in My Collection</b><Icon name="arrow" size={13} /></Link>
-          </div>
-        )}
-      </aside>
-
-      {look && input ? (
-        <section className="edit-main">
-          <div className="edit-spread">
-            <div className="between">
-              <div>
-                <span className="eyebrow" style={{ color: "inherit", opacity: 0.7 }}>{chapter?.label} · {DIRECTION_LABEL[look.direction]}</span>
-                <h2 className="display h-md" style={{ marginTop: 6 }}>{look.title}</h2>
-              </div>
-              <span className="hand" style={{ fontSize: 26, color: "var(--accent)", transform: "rotate(-3deg)" }}>{chapter?.note}</span>
-            </div>
-            <LookBoard key={look.id} pieces={look.pieces} annotations={look.annotations} onPieceClick={(p) => setPanel({ look, slot: p.slot })} />
-            <ul className="why">{look.why.slice(0, 3).map((w, i) => { const [h, ...r] = w.split(":"); return <li key={i}>{r.length ? <><b>{h}:</b>{r.join(":")}</> : w}</li>; })}</ul>
-            {look.notes && <div className="hand-notes" style={{ color: "inherit" }}>{look.notes.map((n) => <span key={n}>{n}</span>)}</div>}
-            <div className="between">
-              <div className="edit-actions">
-                <button className="btn" onClick={() => setPanel({ look })}><Icon name="sparkle" /> Explore this outfit</button>
-                <button className="btn ghost" onClick={() => tryOn(look)}><Icon name="mirror" /> Preview on me</button>
-                <button className="btn ghost" onClick={() => { saveLook(look); toast("Added to My Collection."); }}><Icon name="heart" /> Save</button>
-              </div>
-              <EngineBadge engine={look.engine} />
-            </div>
-          </div>
-          <div className="edit-rail">
-            <EditorialImage src={IMAGES[edit.image]} alt={edit.title.join(" ")} fallback={edit.fallback} word={edit.number} caption={edit.kicker} />
-            <div className="alt-looks">
-              {looks.map((l, i) => (
-                <button key={l.id} className={cx("alt-look", i === li && "on")} onClick={() => setLi(i)}>
-                  <div className="mini"><LookBoard pieces={l.pieces} compact /></div>
-                  <span><b>{l.title}</b><span className="tiny" style={{ opacity: 0.7 }}>{DIRECTION_LABEL[l.direction]}</span></span>
-                </button>
-              ))}
-              <div className="row" style={{ padding: "12px 14px", borderTop: "1px solid var(--e-line)" }}>
-                <button className="link-btn" onClick={() => { setShuffle((s) => s + 1); setLi(0); }}>Shuffle looks</button>
-                <button className="link-btn" onClick={toStudio}>Take it to the studio</button>
-              </div>
-            </div>
-          </div>
-        </section>
+        </>
       ) : (
-        <section className="edit-main" style={{ display: "grid", placeItems: "center", padding: 30 }}>
-          <EditorialImage src={IMAGES[edit.image]} alt={edit.title.join(" ")} fallback={edit.fallback} style={{ width: "min(420px, 100%)", aspectRatio: "3/4" }} />
-        </section>
+        <div className="empty" style={{ margin: 6 }}>
+          <span className="eyebrow" style={{ color: "var(--ink)" }}>Add your clothes to start</span>
+          <div className="row" style={{ justifyContent: "center" }}>
+            <Link href="/wardrobe" className="btn">Add clothes</Link>
+            <button className="btn ghost" onClick={() => { addWardrobe(SAMPLE.map((t) => ({ ...makeGarment({ ...parseGarmentText(t), name: t }), addedAt: Date.now(), sample: true }))); toast("Sample wardrobe added"); }}>Try a sample</button>
+          </div>
+        </div>
       )}
 
-      {input && <StylePanel open={!!panel} onClose={() => setPanel(null)} input={input} initialLook={panel?.look} focusSlot={panel?.slot} onTryOn={(l) => { setPanel(null); tryOn(l); }} />}
+      {input && <StylePanel open={!!open} onClose={() => setOpen(null)} input={input} initialLook={open ?? undefined} onTryOn={(l) => { setOpen(null); tryOn(l); }} />}
     </main>
   );
 }

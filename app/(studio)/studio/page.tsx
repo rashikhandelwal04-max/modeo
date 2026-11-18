@@ -5,21 +5,22 @@ import GarmentEditor from "@/components/GarmentEditor";
 import LookBoard from "@/components/LookBoard";
 import Suggestions from "@/components/Suggestions";
 import Flat from "@/components/Flat";
-import { Monogram } from "@/components/brand";
 import { EngineBadge, Icon } from "@/components/ui";
 import { useApp } from "@/lib/store/state";
 import { putImage, useImage } from "@/lib/store/images";
 import { dominantColor, fileToDataUrl, resizeDataUrl } from "@/lib/image";
 import { makeGarment, parseGarmentText, garmentName } from "@/lib/parse";
 import { requestLooks } from "@/lib/client";
-import { DIRECTION_LABEL, regeneratePiece, type EngineInput } from "@/lib/styling/engine";
+import { regeneratePiece, type EngineInput } from "@/lib/styling/engine";
 import { AESTHETICS, ATTRIBUTE_OPTIONS, roleOf } from "@/lib/taxonomy";
-import type { Garment, GarmentAttributes, Look, Nudge, WardrobeItem } from "@/lib/types";
+import type { Direction, Garment, GarmentAttributes, Look, Nudge, WardrobeItem } from "@/lib/types";
+
+const SHORT: Record<Direction, string> = { minimal: "Minimal", casual: "Easy", bold: "Bold", contemporary: "Modern" };
 import { cx, uid } from "@/lib/util";
 
 type Tab = "describe" | "upload" | "wardrobe" | "link" | "aesthetic" | "occasion";
 
-const EXAMPLES = ["Oversized black blazer", "Black saree with gold detailing", "Yellow midi skirt", "White linen shirt", "Red silk lehenga", "Beige trench coat"];
+const EXAMPLES = ["Black blazer", "Gold saree", "Yellow midi skirt", "White linen shirt", "Red lehenga"];
 const NUDGES: { id: Nudge; label: string }[] = [
   { id: "minimal", label: "Minimal" }, { id: "experimental", label: "Experimental" }, { id: "formal", label: "Formal" },
   { id: "casual", label: "Casual" }, { id: "colourful", label: "Colourful" }, { id: "elegant", label: "Elegant" }, { id: "affordable", label: "Affordable" },
@@ -167,17 +168,14 @@ function StudioInner() {
     <main className="studio">
       {/* ---------- 1. SOURCE ---------- */}
       <section className="st-source" aria-label="Choose a garment">
-        <div>
-          <span className="eyebrow">The studio</span>
-          <h1 className="mega" style={{ fontSize: 40, marginTop: 6 }}>Unleash<br /><em style={{ textTransform: "none" }}>your style.</em></h1>
-        </div>
+        <h1 className="display h-md">Studio</h1>
         <div className="tabs wrap" role="tablist">
           {tabs.map(([t, l]) => <button key={t} role="tab" aria-selected={tab === t} className={cx("tab", tab === t && "on")} onClick={() => setTab(t)}>{l}</button>)}
         </div>
 
         {tab === "describe" && (
           <div className="stack">
-            <input className="input underline" value={text} placeholder="Describe a garment…" aria-label="Describe the garment" onChange={(e) => onDescribe(e.target.value)} onKeyDown={(e) => e.key === "Enter" && draft && run(draft)} />
+            <input className="input underline" value={text} placeholder="Black blazer, gold saree…" aria-label="Describe the garment" onChange={(e) => onDescribe(e.target.value)} onKeyDown={(e) => e.key === "Enter" && draft && run(draft)} />
             <div className="chips">{EXAMPLES.map((e) => <button key={e} className="chip" onClick={() => onDescribe(e)}>{e}</button>)}</div>
           </div>
         )}
@@ -186,10 +184,9 @@ function StudioInner() {
             <label className="drop" style={{ minHeight: 160 }}>
               <input type="file" accept="image/*" onChange={(e) => onPhoto(e.target.files?.[0])} aria-label="Upload a clothing image" />
               {photoSrc ? <img src={photoSrc} alt="Garment" style={{ maxHeight: 180, objectFit: "contain" }} /> : (
-                <div className="stack-sm" style={{ justifyItems: "center" }}><Icon name="upload" size={22} /><span className="kicker">Upload a clothing image</span><span className="tiny muted">Flat-lay or on a hanger works best</span></div>
+                <div className="stack-sm" style={{ justifyItems: "center" }}><Icon name="upload" size={20} /><span className="eyebrow">Upload</span></div>
               )}
             </label>
-            <p className="tiny muted" style={{ margin: 0 }}>{status?.claude ? "AI vision detects category, colour, fabric and more. Check and correct below." : "Colour is detected on your device. Automatic garment recognition needs the AI key — choose the category below."}</p>
             {aiDetected && <span className="tag dark" style={{ justifySelf: "start" }}>AI-detected · please check</span>}
           </div>
         )}
@@ -218,16 +215,15 @@ function StudioInner() {
 
         {!["aesthetic", "occasion"].includes(tab) && (
           <>
-            {tab === "wardrobe" && ownedSource ? <span className="small">Styling <b style={{ fontWeight: 500 }}>{ownedSource.name}</b> from your wardrobe.</span> : (
+            {tab === "wardrobe" && ownedSource ? <span className="small">{ownedSource.name}</span> : (
               <details open={tab === "upload" || !!attrs.category}>
-                <summary className="eyebrow" style={{ cursor: "pointer", color: "var(--ink)", marginBottom: 12 }}>Garment details</summary>
+                <summary className="eyebrow" style={{ cursor: "pointer", marginBottom: 12 }}>Details +</summary>
                 <GarmentEditor value={attrs} onChange={setAttrs} />
               </details>
             )}
             <button className="btn block" disabled={!(tab === "wardrobe" ? ownedSource : ready) || !!busy} onClick={() => (tab === "wardrobe" && ownedSource ? run(ownedSource, { owned: true }) : draft && run({ ...draft, name: draft.name || garmentName(draft) }))}>
               {busy ?? "Style it"} <Icon name="arrow" />
             </button>
-            {!ready && tab !== "wardrobe" && <span className="tiny muted">Describe a garment or choose its category.</span>}
           </>
         )}
       </section>
@@ -236,18 +232,7 @@ function StudioInner() {
       <section className="st-canvas" aria-label="Outfit canvas">
         {!look ? (
           <div className="st-empty">
-            <Monogram size="60%" className="" paper="var(--white)" ink="var(--line-2)" />
-            <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", padding: 24 }}>
-              <div className="stack" style={{ justifyItems: "center" }}>
-                {busy ? <><span className="spin" /><span className="kicker">{busy}</span></> : (
-                  <>
-                    <p className="mega" style={{ fontSize: "clamp(44px, 6vw, 96px)", margin: 0 }}>Your <em style={{ textTransform: "none" }}>canvas.</em></p>
-                    <p className="small muted" style={{ maxWidth: "40ch", margin: 0 }}>Choose a piece on the left. Four looks appear here. Click any garment for contextual suggestions on the right.</p>
-                    <span className="hand" style={{ fontSize: 24, transform: "rotate(-3deg)" }}>← start with one piece</span>
-                  </>
-                )}
-              </div>
-            </div>
+            {busy ? <span className="spin" /> : <span className="eyebrow">Start with one piece</span>}
           </div>
         ) : (
           <>
@@ -255,27 +240,27 @@ function StudioInner() {
               <div className="row" style={{ flexWrap: "nowrap" }}>
                 <div style={{ width: 44, height: 54, flex: "none", background: "var(--paper)" }}>{anchor && <Thumb g={anchor} />}</div>
                 <div style={{ minWidth: 0 }}>
-                  <span className="eyebrow">{DIRECTION_LABEL[look.direction]}</span>
-                  <h2 className="display" style={{ fontSize: 32, margin: "4px 0 0" }}>{look.title}</h2>
+                  <h2 className="display h-sm">{anchor?.name}</h2>
+                  <span className="eyebrow">{SHORT[look.direction]}</span>
                 </div>
               </div>
               <div className="row">
                 {engine && <EngineBadge engine={engine} />}
                 <button className="btn ghost sm" onClick={() => { saveLook({ ...look, id: look.id + "_" + Date.now().toString(36) }); toast("Added to My Collection."); }}><Icon name="heart" size={13} /> Save</button>
-                <button className="btn sm" onClick={() => tryOn(look)}><Icon name="mirror" size={13} /> {photo ? "Preview on me" : "Fitting room"}</button>
+                <button className="btn sm" onClick={() => tryOn(look)}><Icon name="mirror" size={13} /> Try on</button>
               </div>
             </div>
             {notice && <div className="demo-banner" style={{ margin: "10px 22px 0" }}><span>{notice}</span></div>}
             <LookBoard key={look.id} pieces={look.pieces} annotations={look.annotations} activeSlot={focus} onPieceClick={(p) => setFocus(p.slot)} />
             <div className="st-tools">
-              <div className="nudges"><span className="eyebrow" style={{ marginRight: 4 }}>More</span>{NUDGES.map((n) => <button key={n.id} className={cx("chip", nudges.includes(n.id) && "on")} onClick={() => toggleNudge(n.id)} disabled={!!busy}>{n.label}</button>)}</div>
-              <button className="link-btn" disabled={!!busy} onClick={() => anchor && run(anchor, { owned: studio.anchorOwned })}>{busy ?? "Regenerate all"}</button>
+              <div className="nudges">{NUDGES.map((n) => <button key={n.id} className={cx("chip", nudges.includes(n.id) && "on")} onClick={() => toggleNudge(n.id)} disabled={!!busy}>{n.label}</button>)}</div>
+              <button className="link-btn" disabled={!!busy} onClick={() => anchor && run(anchor, { owned: studio.anchorOwned })}>{busy ?? "Refresh"}</button>
             </div>
             <div className="st-film" role="tablist" aria-label="Looks">
               {looks!.map((l, i) => (
                 <button key={l.id} role="tab" aria-selected={i === sel} className={cx(i === sel && "on")} onClick={() => { setSel(i); setFocus(undefined); }}>
                   <div className="mini"><LookBoard pieces={l.pieces} compact /></div>
-                  <span style={{ minWidth: 0 }}><b>{l.title}</b><span className="tiny" style={{ opacity: 0.7 }}>{DIRECTION_LABEL[l.direction].split(" & ")[0]}</span></span>
+                  <b>{SHORT[l.direction]}</b>
                 </button>
               ))}
             </div>
@@ -287,12 +272,14 @@ function StudioInner() {
       <section className="st-suggest" aria-label="Styling suggestions">
         {look && engineInput && anchor ? (
           <>
-            <span className="eyebrow">Designer&apos;s notes</span>
-            <h2 className="display" style={{ fontSize: 30, margin: "6px 0 12px" }}>Style your <em>{anchor.name.toLowerCase()}.</em></h2>
-            <ul className="why small" style={{ marginBottom: 12 }}>{look.why.slice(0, 2).map((w, i) => <li key={i}>{w}</li>)}</ul>
-            {look.notes && <div className="hand-notes" style={{ marginBottom: 10 }}>{look.notes.map((n) => <span key={n}>{n}</span>)}</div>}
+            <h2 className="display h-sm" style={{ marginBottom: 6 }}>Style it</h2>
+            <details className="why-toggle" style={{ marginBottom: 6 }}>
+              <summary>Why it works +</summary>
+              <ul className="why small">{look.why.map((w, i) => <li key={i}>{w}</li>)}</ul>
+              {look.notes && <div className="hand-notes" style={{ marginTop: 8 }}>{look.notes.map((n) => <span key={n}>{n}</span>)}</div>}
+            </details>
             <div className="opt-group">
-              <div className="eyebrow">In this look</div>
+              <div className="eyebrow">This look</div>
               <div className="stack-sm">
                 {look.pieces.map((p) => (
                   <div key={p.slot} className="row" style={{ flexWrap: "nowrap", gap: 8, justifyContent: "space-between" }}>
@@ -310,11 +297,7 @@ function StudioInner() {
             <Suggestions look={look} input={engineInput} onChange={updateLook} focus={focus} onFocus={setFocus} />
           </>
         ) : (
-          <div className="stack">
-            <span className="eyebrow">Designer&apos;s notes</span>
-            <p className="pull-quote" style={{ margin: 0 }}>Click any garment on the canvas.</p>
-            <p className="small muted" style={{ margin: 0 }}>A jacket reveals tops, bottoms, shoes, bags, jewellery and colour stories. A saree reveals blouse designs, draping, jewellery, footwear and complementary colours.</p>
-          </div>
+          <h2 className="display h-sm" style={{ color: "var(--grey)" }}>Style it</h2>
         )}
       </section>
     </main>

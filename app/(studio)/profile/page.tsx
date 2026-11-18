@@ -43,8 +43,7 @@ export default function Profile() {
     <main className="page fade-in">
       <div className="page-head">
         <div>
-          <div className="eyebrow">My Profile</div>
-          <h1 className="mega h-lg">Your style <em style={{ textTransform: "none" }}>identity.</em></h1>
+          <h1 className="display h-md">Profile</h1>
         </div>
       </div>
 

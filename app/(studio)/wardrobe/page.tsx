@@ -162,13 +162,12 @@ export default function Wardrobe() {
       <div className="closet-main">
       <div className="page-head" style={{ marginBottom: 6 }}>
         <div>
-          <div className="eyebrow">My Wardrobe · {wardrobe.length} pieces · your actual clothes</div>
-          <h1 className="display h-lg">The <em>closet.</em></h1>
+          <h1 className="display h-md">Wardrobe <span className="muted" style={{ fontSize: 12, letterSpacing: "0.1em" }}>{wardrobe.length}</span></h1>
         </div>
         <div className="row">
-          <button className="btn ghost" onClick={() => setAdding((v) => !v)}><Icon name="pen" /> Describe a piece</button>
+          <button className="btn ghost" onClick={() => setAdding((v) => !v)}><Icon name="pen" size={13} /> Add</button>
           <label className="btn" style={{ position: "relative" }}>
-            <Icon name="upload" /> Upload photos
+            <Icon name="upload" size={13} /> Upload
             <input type="file" accept="image/*" multiple onChange={(e) => { upload(e.target.files); e.target.value = ""; }} style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }} aria-label="Upload clothing photos" />
           </label>
         </div>
@@ -181,8 +180,7 @@ export default function Wardrobe() {
         </div>
       )}
 
-      <div className="rod" aria-hidden />
-      <div className="filters" style={{ marginBottom: 26 }}>
+            <div className="filters" style={{ marginBottom: 26 }}>
         <span className="eyebrow">Filter</span>
         <select className="select" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} aria-label="Category">
           <option value="">All categories</option>
@@ -214,11 +212,10 @@ export default function Wardrobe() {
 
       {wardrobe.length === 0 && pending.length === 0 ? (
         <div className="empty" style={{ minHeight: 360, alignContent: "center" }}>
-          <div className="display h-md">Your digital wardrobe starts here.</div>
-          <p className="small muted" style={{ maxWidth: "50ch", margin: 0 }}>Upload photos of your clothes — several at once. {status?.claude ? "MY GALA's vision model identifies category, colour, fabric, pattern, fit, season and occasion; you can correct anything." : "Colour is detected on your device; add ANTHROPIC_API_KEY to enable automatic garment recognition."}</p>
+          <span className="eyebrow" style={{ color: "var(--ink)" }}>Upload your clothes</span>
           <div className="row">
             <label className="btn" style={{ position: "relative" }}>Upload photos<input type="file" accept="image/*" multiple onChange={(e) => upload(e.target.files)} style={{ position: "absolute", inset: 0, opacity: 0 }} /></label>
-            <button className="btn ghost" onClick={addSample}>Try a sample wardrobe</button>
+            <button className="btn ghost" onClick={addSample}>Try a sample</button>
           </div>
         </div>
       ) : (
@@ -270,18 +267,15 @@ export default function Wardrobe() {
 
             <hr className="rule" />
             <div className="between">
-              <h3 className="mega" style={{ margin: 0, fontSize: "clamp(30px, 3.4vw, 50px)" }}>How else can I <em style={{ textTransform: "none" }}>wear this?</em></h3>
+              <h3 className="display h-sm" style={{ margin: 0 }}>How else can I wear this?</h3>
               <div className="row">
                 <div className="seg" role="tablist" aria-label="Styling mode">
                   <button className={cx(mode === "wardrobe" && "on")} onClick={() => { setMode("wardrobe"); if (looks) howElse(current, "wardrobe"); }}>My wardrobe</button>
                   <button className={cx(mode === "explore" && "on")} onClick={() => { setMode("explore"); if (looks) howElse(current, "explore"); }}>Explore</button>
                 </div>
-                <button className="btn" onClick={() => howElse(current)} disabled={loading}>{loading ? "Styling…" : looks ? "Regenerate" : "Show me"}</button>
+                <button className="btn" onClick={() => howElse(current)} disabled={loading}>{loading ? "…" : looks ? "Refresh" : "Show me"}</button>
               </div>
             </div>
-            <p className="small muted" style={{ margin: 0 }}>
-              {mode === "wardrobe" ? "Only pieces you own. Gaps are called out, never filled with things you'd have to buy." : "Your pieces first, plus suggestions beyond your wardrobe — every suggested item is clearly marked."}
-            </p>
             {engine && looks && <EngineBadge engine={engine} />}
             {loading && <div className="looks">{[0, 1].map((i) => <div key={i} className="skeleton" style={{ height: 420 }} />)}</div>}
             {looks && (

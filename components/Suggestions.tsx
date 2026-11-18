@@ -15,7 +15,12 @@ export default function Suggestions({ look, input, onChange, focus, onFocus, tit
     if (!focus) return;
     const k = focus.replace(/-\d+$/, "");
     const el = refs.current[focus] ?? refs.current[k] ?? refs.current[`${k}-1`];
-    el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    // scroll only the panel itself, never the page
+    const box = el?.closest(".st-suggest, .drawer-body") as HTMLElement | null;
+    if (el && box) {
+      const top = el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 12;
+      box.scrollTo({ top, behavior: "smooth" });
+    }
   }, [focus]);
 
   const isOn = (g: PanelGroup, id: string) => {
