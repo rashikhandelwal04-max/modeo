@@ -7,7 +7,7 @@ export const maxDuration = 60;
 
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  if (!imageGenConfigured()) return NextResponse.json({ configured: false, error: "Image generation is not connected: REPLICATE_API_TOKEN is not set on the server." }, { status: 501 });
+  if (!imageGenConfigured()) return NextResponse.json({ configured: false, error: "Image generation is not connected: set CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN (free) or REPLICATE_API_TOKEN on the server." }, { status: 501 });
   const limited = rateLimit(req, "garment-image", 120);
   if (limited) return limited;
   const body = await req.json().catch(() => null);
@@ -17,8 +17,8 @@ export async function POST(req: Request) {
   const t0 = Date.now();
   try {
     const r = await generateGarmentImage(prompt, seed);
-    console.log(`[garment-image] ${r.cached ? "cache-hit" : "generated"} prediction=${r.predictionId ?? "-"} seed=${seed} ms=${Date.now() - t0} prompt="${prompt.slice(0, 80)}…"`);
-    return NextResponse.json({ image: r.image, seed, predictionId: r.predictionId, cached: r.cached, provider: "replicate" });
+    console.log(`[garment-image] ${r.provider} ${r.cached ? "cache-hit" : "generated"} prediction=${r.predictionId ?? "-"} seed=${seed} ms=${Date.now() - t0} prompt="${prompt.slice(0, 80)}…"`);
+    return NextResponse.json({ image: r.image, seed, predictionId: r.predictionId, cached: r.cached, provider: r.provider });
   } catch (e) {
     const err = e instanceof ImageGenError ? e : new ImageGenError(e instanceof Error ? e.message : "Unknown error", 502);
     console.error(`[garment-image] FAILED status=${err.status} ${err.message}`);

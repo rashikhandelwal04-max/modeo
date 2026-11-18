@@ -157,4 +157,5 @@ export interface IntegrationStatus {
   tryOnProviders: { fashn: boolean; replicate: boolean; huggingface?: boolean };
   /** photorealistic garment image generation available */
   imageGen?: boolean;
+  imageProvider?: "replicate" | "cloudflare" | null;
 }

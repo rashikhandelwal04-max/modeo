@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { CLAUDE_MODEL, claudeConfigured } from "@/lib/ai/claude";
 import { defaultProviderName, PROVIDERS } from "@/lib/tryon";
-import { imageGenConfigured } from "@/lib/imagegen";
+import { imageGenConfigured, imageProvider } from "@/lib/imagegen";
 import type { IntegrationStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +18,7 @@ export async function GET() {
       huggingface: !!PROVIDERS.find((p) => p.name === "huggingface")?.configured(),
     },
     imageGen: imageGenConfigured(),
+    imageProvider: imageProvider(),
   };
   return NextResponse.json(body);
 }

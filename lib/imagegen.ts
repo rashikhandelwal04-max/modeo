@@ -2,13 +2,18 @@ import "server-only";
 import { urlToDataUrl } from "./tryon/fetchImage";
 
 /**
- * Photorealistic image generation via Replicate (default model: black-forest-labs/flux-schnell).
- * The ONLY image-generation provider in MY GALA. Requires REPLICATE_API_TOKEN with billing enabled.
+ * Photorealistic image generation. Two providers, chosen by which keys are set:
+ *  1. Replicate (paid)            — REPLICATE_API_TOKEN, model black-forest-labs/flux-schnell
+ *  2. Cloudflare Workers AI (free daily allowance) — CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN,
+ *     model @cf/black-forest-labs/flux-1-schnell
  */
 const token = () => process.env.REPLICATE_API_TOKEN || "";
 const model = () => process.env.MYGALA_IMAGE_MODEL || "black-forest-labs/flux-schnell";
+const cfAccount = () => (process.env.CLOUDFLARE_ACCOUNT_ID || "").trim();
+const cfToken = () => (process.env.CLOUDFLARE_API_TOKEN || "").trim();
 
-export const imageGenConfigured = () => !!token();
+export const imageProvider = (): "replicate" | "cloudflare" | null => (token() ? "replicate" : cfAccount() && cfToken() ? "cloudflare" : null);
+export const imageGenConfigured = () => imageProvider() !== null;
 
 export class ImageGenError extends Error {
   constructor(message: string, public status: number, public retryAfter?: number) { super(message); }
@@ -16,10 +21,16 @@ export class ImageGenError extends Error {
 
 const cache = new Map<string, string>();
 
-export async function generateGarmentImage(prompt: string, seed: number): Promise<{ image: string; predictionId?: string; cached: boolean }> {
+export async function generateGarmentImage(prompt: string, seed: number): Promise<{ image: string; predictionId?: string; cached: boolean; provider: string }> {
   const key = `${seed}|${prompt}`;
   const hit = cache.get(key);
-  if (hit) return { image: hit, cached: true };
+  if (hit) return { image: hit, cached: true, provider: imageProvider() ?? "" };
+  if (imageProvider() === "cloudflare") {
+    const image = await cloudflare(prompt, seed);
+    if (cache.size > 200) cache.clear();
+    cache.set(key, image);
+    return { image, cached: false, provider: "cloudflare" };
+  }
   const res = await fetch(`${process.env.REPLICATE_API_BASE || "https://api.replicate.com"}/v1/models/${model()}/predictions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json", Prefer: "wait=50" },
@@ -42,5 +53,22 @@ export async function generateGarmentImage(prompt: string, seed: number): Promis
   const image = await urlToDataUrl(out);
   if (cache.size > 200) cache.clear();
   cache.set(key, image);
-  return { image, predictionId: data.id, cached: false };
+  return { image, predictionId: data.id, cached: false, provider: "replicate" };
+}
+
+async function cloudflare(prompt: string, seed: number): Promise<string> {
+  const base = process.env.CLOUDFLARE_API_BASE || "https://api.cloudflare.com";
+  const res = await fetch(`${base}/client/v4/accounts/${encodeURIComponent(cfAccount())}/ai/run/@cf/black-forest-labs/flux-1-schnell`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cfToken()}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt: prompt.slice(0, 2000), steps: 6, seed }),
+    signal: AbortSignal.timeout(55000),
+  });
+  const data = (await res.json().catch(() => ({}))) as { success?: boolean; result?: { image?: string }; errors?: { code?: number; message?: string }[] };
+  const msg = data.errors?.map((e) => `${e.code ?? ""} ${e.message ?? ""}`.trim()).join("; ") || "";
+  if (res.status === 401 || res.status === 403 || /authentication|unauthorized|10000/i.test(msg)) throw new ImageGenError("Cloudflare rejected the token or account ID (check CLOUDFLARE_API_TOKEN has Workers AI permission and CLOUDFLARE_ACCOUNT_ID is correct).", 401);
+  if (/4006|daily free allocation|neurons/i.test(msg)) throw new ImageGenError("Today's free Cloudflare image allowance is used up. It resets daily (00:00 UTC).", 429, 3600);
+  if (res.status === 429) throw new ImageGenError("Cloudflare rate limit reached.", 429, Number(res.headers.get("retry-after")) || 10);
+  if (!res.ok || !data.success || !data.result?.image) throw new ImageGenError(`Cloudflare error ${res.status}${msg ? `: ${msg}` : ""}`, 502);
+  return `data:image/jpeg;base64,${data.result.image}`;
 }

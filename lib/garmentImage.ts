@@ -48,7 +48,11 @@ export async function getGarmentImage(prompt: string, variant = variantOf(prompt
           const res = await fetch("/api/garment-image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt, seed: seedFor(prompt, variant) }) });
           const data = await res.json().catch(() => ({}));
           if (res.status === 501 || res.status === 404) { notConfigured = data.error ?? "Image generation is not connected."; return { src: null, error: notConfigured }; }
-          if (res.status === 429) { await new Promise((r) => setTimeout(r, (data.retryAfter ?? 10) * 1000)); continue; }
+          if (res.status === 429) {
+            if ((data.retryAfter ?? 10) > 60) return { src: null, error: data.error ?? "Image limit reached for now." }; // e.g. daily free allowance used up
+            await new Promise((r) => setTimeout(r, (data.retryAfter ?? 10) * 1000));
+            continue;
+          }
           if (!res.ok || !data.image) return { src: null, error: data.error ?? "The photo couldn't be generated." };
           await putImage(id, data.image);
           return { src: data.image as string, error: null };
