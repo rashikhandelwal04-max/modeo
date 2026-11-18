@@ -1,6 +1,5 @@
 "use client";
-import Flat from "./Flat";
-import { useImage } from "@/lib/store/images";
+import GarmentPhoto from "./GarmentPhoto";
 import type { Annotation, Piece } from "@/lib/types";
 import { cx } from "@/lib/util";
 import { categoryLabel } from "@/lib/taxonomy";
@@ -15,10 +14,7 @@ function span(p: Piece, isHero: boolean, clothCount: number) {
 }
 
 function PieceVisual({ p }: { p: Piece }) {
-  const local = useImage(p.garment.imageId);
-  if (local) return <img className="photo" src={local} alt={p.garment.name} />;
-  if (p.garment.imageUrl) return <img className="photo" src={p.garment.imageUrl} alt={p.garment.name} referrerPolicy="no-referrer" />;
-  return <Flat garment={p.garment} />;
+  return <GarmentPhoto g={p.garment} />;
 }
 
 // hand-drawn arrows & circles — slightly irregular so they read as ink, not UI
@@ -63,6 +59,7 @@ export default function LookBoard({
   stamp,
   className,
   activeSlot,
+  accessories,
 }: {
   pieces: Piece[];
   annotations?: Annotation[];
@@ -71,7 +68,10 @@ export default function LookBoard({
   stamp?: React.ReactNode;
   className?: string;
   activeSlot?: string;
+  /** accessories & jewellery are optional — hidden unless asked for */
+  accessories?: boolean;
 }) {
+  if (!accessories) pieces = pieces.filter((p) => p.anchor || !["jewellery", "bag", "accessory"].includes(p.role));
   const anchor = pieces.find((p) => p.anchor);
   const anchorIsCloth = anchor && (CLOTH.has(anchor.role) || anchor.garment.category === "saree-blouse");
   const hero = anchorIsCloth ? anchor : pieces.find((p) => CLOTH.has(p.role)) ?? anchor ?? pieces[0];

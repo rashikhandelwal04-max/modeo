@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Flat from "@/components/Flat";
+import GarmentPhoto from "@/components/GarmentPhoto";
 import GarmentEditor from "@/components/GarmentEditor";
 import LookCard from "@/components/LookCard";
 import StylePanel from "@/components/StylePanel";
@@ -37,8 +37,7 @@ const SAMPLE: [string, Partial<WardrobeItem>][] = [
 ];
 
 function ItemVisual({ item }: { item: WardrobeItem }) {
-  const src = useImage(item.imageId);
-  return src ? <img src={src} alt={item.name} /> : <Flat garment={item} />;
+  return <GarmentPhoto g={item} />;
 }
 
 type Pending = { id: string; name: string };

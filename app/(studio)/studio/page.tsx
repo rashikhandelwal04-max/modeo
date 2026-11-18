@@ -1,309 +1,353 @@
 "use client";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import GarmentEditor from "@/components/GarmentEditor";
-import LookBoard from "@/components/LookBoard";
-import Suggestions from "@/components/Suggestions";
-import Flat from "@/components/Flat";
-import { EngineBadge, Icon } from "@/components/ui";
+/**
+ * YOUR EDIT — the personal stylist flow.
+ * body (optional, once) → intent → piece type → your garment → pairings → outfit
+ */
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import GarmentPhoto from "@/components/GarmentPhoto";
+import CampaignPhoto from "@/components/CampaignPhoto";
+import { Icon } from "@/components/ui";
 import { useApp } from "@/lib/store/state";
-import { putImage, useImage } from "@/lib/store/images";
+import { putImage } from "@/lib/store/images";
 import { dominantColor, fileToDataUrl, resizeDataUrl } from "@/lib/image";
-import { makeGarment, parseGarmentText, garmentName } from "@/lib/parse";
-import { requestLooks } from "@/lib/client";
-import { regeneratePiece, type EngineInput } from "@/lib/styling/engine";
-import { AESTHETICS, ATTRIBUTE_OPTIONS, roleOf } from "@/lib/taxonomy";
-import type { Direction, Garment, GarmentAttributes, Look, Nudge, WardrobeItem } from "@/lib/types";
-
-const SHORT: Record<Direction, string> = { minimal: "Minimal", casual: "Easy", bold: "Bold", contemporary: "Modern" };
+import { makeGarment, parseGarmentText } from "@/lib/parse";
+import { OCCASIONS } from "@/lib/editorial";
+import { COLORS, hexOf, nearestColor, cap } from "@/lib/colors";
+import { categoryLabel, roleOf } from "@/lib/taxonomy";
+import {
+  accessoryOptions, footwearOptions, missingInfo, optionToGarment, pairingOptions, proportionTips, questionsFor, rolesToFill, shadesFor,
+  ROLE_LABEL, type Option, type PairRole, type Question,
+} from "@/lib/stylist";
+import type { Category, Garment, GarmentAttributes, Look, Piece } from "@/lib/types";
 import { cx, uid } from "@/lib/util";
 
-type Tab = "describe" | "upload" | "wardrobe" | "link" | "aesthetic" | "occasion";
+type Step = "body" | "intent" | "piece" | "garment" | "pair" | "outfit";
 
-const EXAMPLES = ["Black blazer", "Gold saree", "Yellow midi skirt", "White linen shirt", "Red lehenga"];
-const NUDGES: { id: Nudge; label: string }[] = [
-  { id: "minimal", label: "Minimal" }, { id: "experimental", label: "Experimental" }, { id: "formal", label: "Formal" },
-  { id: "casual", label: "Casual" }, { id: "colourful", label: "Colourful" }, { id: "elegant", label: "Elegant" }, { id: "affordable", label: "Affordable" },
+const PIECE_TYPES: { cat: Category; label: string }[] = [
+  { cat: "skirt", label: "Skirt" }, { cat: "trousers", label: "Trousers" }, { cat: "jeans", label: "Jeans" }, { cat: "dress", label: "Dress" },
+  { cat: "top", label: "Top" }, { cat: "shirt", label: "Shirt" }, { cat: "blazer", label: "Blazer" }, { cat: "saree", label: "Saree" },
+  { cat: "kurta", label: "Kurta" }, { cat: "lehenga", label: "Lehenga" },
 ];
-const AESTHETIC_PRESETS: Record<string, { text: string; nudges: Nudge[] }> = {
-  Minimalist: { text: "Black wide-leg trousers", nudges: ["minimal"] },
-  "Old money": { text: "Ivory cable-knit sweater", nudges: ["elegant"] },
-  Streetwear: { text: "Oversized graphic tee", nudges: ["experimental", "casual"] },
-  "Quiet luxury": { text: "Camel cashmere coat", nudges: ["minimal", "elegant"] },
-  "Casual chic": { text: "White linen shirt", nudges: ["casual"] },
-  Contemporary: { text: "Grey satin bias-cut midi skirt", nudges: [] },
-  Bohemian: { text: "Rust floral maxi dress", nudges: ["colourful", "casual"] },
-  Classic: { text: "Beige trench coat", nudges: ["elegant"] },
-  Formal: { text: "Navy tailored blazer", nudges: ["formal"] },
-  Experimental: { text: "Fuchsia satin corset top", nudges: ["experimental", "colourful"] },
-  "Indian contemporary": { text: "Ivory chikankari kurta", nudges: ["experimental"] },
-};
-const OCCASION_PRESETS: Record<string, string> = {
-  work: "Charcoal tailored blazer", college: "Blue straight-fit jeans", casual: "White linen shirt", weekend: "White heavyweight tee",
-  "date night": "Black satin slip dress", party: "Silver satin midi skirt", wedding: "Gold silk saree with zari border", festive: "Emerald silk kurta",
-  travel: "Navy linen shirt", formal: "Black tailored jumpsuit", brunch: "Yellow midi skirt", interview: "Navy tailored blazer",
-};
+const POSES = ["Standing", "Walking", "Hand on hip", "Seated", "Over the shoulder"];
+const BASE_COLORS = COLORS.filter((c) => c.name !== "pearl");
 
-function Thumb({ g }: { g: Garment }) {
-  const src = useImage(g.imageId);
-  if (src) return <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />;
-  if (g.imageUrl) return <img src={g.imageUrl} alt="" referrerPolicy="no-referrer" style={{ width: "100%", height: "100%", objectFit: "cover" }} />;
-  return <Flat garment={g} />;
-}
-
-function StudioInner() {
-  const { status, wardrobe, profile, studio, set, toast, saveLook, rememberShown, photo } = useApp();
+export default function YourEdit() {
+  const { profile, set, wardrobe, status, saveLook, toast } = useApp();
   const router = useRouter();
-  const params = useSearchParams();
-  const start = params.get("start");
-  const [tab, setTab] = useState<Tab>(start === "aesthetic" ? "aesthetic" : start === "occasion" ? "occasion" : start === "build" && wardrobe.length ? "wardrobe" : "describe");
+  const [step, setStep] = useState<Step>(profile.askedBody ? "intent" : "body");
+  const [occasion, setOccasion] = useState<string | undefined>();
   const [text, setText] = useState("");
   const [attrs, setAttrs] = useState<Partial<GarmentAttributes>>({});
   const [imageId, setImageId] = useState<string | undefined>();
-  const [imageUrl, setImageUrl] = useState<string | undefined>();
-  const [aiDetected, setAiDetected] = useState(false);
+  const [ownedId, setOwnedId] = useState<string | undefined>();
+  const [mode, setMode] = useState<"details" | "photo" | "describe">("details");
   const [busy, setBusy] = useState<string | null>(null);
-  const [url, setUrl] = useState("");
-  const [urlInfo, setUrlInfo] = useState<{ title: string; source: string } | null>(null);
-  const [nudges, setNudges] = useState<Nudge[]>([]);
-  const [occasion, setOccasion] = useState<string | undefined>(studio.occasion);
-  const [ownedSource, setOwnedSource] = useState<WardrobeItem | null>(null);
-  const [engine, setEngine] = useState<"claude" | "rules" | null>(studio.looks?.[0]?.engine ?? null);
-  const [notice, setNotice] = useState<string | undefined>();
-  const [sel, setSel] = useState(0);
-  const [focus, setFocus] = useState<string | undefined>();
-  const photoSrc = useImage(imageId);
+  const [roleIdx, setRoleIdx] = useState(0);
+  const [picks, setPicks] = useState<Partial<Record<PairRole, Option>>>({});
+  const [filters, setFilters] = useState<{ color?: string; shape?: string }>({});
+  const [shoe, setShoe] = useState<Option | null>(null);
+  const [extras, setExtras] = useState<{ accessories: boolean; footwear: boolean; poses: boolean }>({ accessories: false, footwear: false, poses: false });
+  const [acc, setAcc] = useState<Option[]>([]);
+  const [pose, setPose] = useState<string | undefined>();
+  const [h, setH] = useState(profile.heightCm ? String(profile.heightCm) : "");
+  const [w, setW] = useState(profile.weightKg ? String(profile.weightKg) : "");
 
-  const anchor = studio.anchor;
-  const looks = studio.looks;
-  const look = looks?.[Math.min(sel, (looks?.length ?? 1) - 1)];
+  const anchor: Garment | null = useMemo(() => {
+    if (!attrs.category) return null;
+    const own = ownedId ? wardrobe.find((x) => x.id === ownedId) : undefined;
+    if (own) return own;
+    const colorWord = attrs.shade ?? attrs.color ?? "";
+    const desc = [colorWord, attrs.silhouette, attrs.length, attrs.fit, attrs.rise, attrs.neckline ? `${attrs.neckline.toLowerCase()} neck` : "", attrs.fabric, categoryLabel(attrs.category).toLowerCase()].filter(Boolean).join(" ");
+    return makeGarment({ ...attrs, id: "anchor-" + (imageId ?? "draft"), imageId, name: cap(desc.replace(/\s+/g, " ").trim()) } as never);
+  }, [attrs, imageId, ownedId, wardrobe]);
 
-  useEffect(() => { if (start === "aesthetic") setTab("aesthetic"); if (start === "occasion") setTab("occasion"); }, [start]);
+  const roles = anchor ? rolesToFill(anchor.category) : [];
+  const role = roles[roleIdx];
+  const options = useMemo(() => (anchor && role ? pairingOptions(anchor, role, occasion, profile) : []), [anchor, role, occasion, profile]);
+  const shapeKey: "neckline" | "silhouette" | "fit" = role === "bottom" ? "silhouette" : role === "layer" ? "fit" : "neckline";
+  const shapes = Array.from(new Set(options.map((o) => o[shapeKey]).filter(Boolean))) as string[];
+  const colours = Array.from(new Set(options.map((o) => o.color)));
+  const shown = options.filter((o) => (!filters.color || o.color === filters.color) && (!filters.shape || o[shapeKey] === filters.shape)).slice(0, filters.color || filters.shape ? 12 : 8);
+  const shoes = anchor ? footwearOptions(anchor, occasion) : [];
+  const accs = anchor ? accessoryOptions(anchor, occasion) : [];
+  const chosen = Object.values(picks).filter(Boolean) as Option[];
+  const tips = anchor ? proportionTips(anchor, chosen, profile) : [];
+  const missing = missingInfo({ ...attrs, color: attrs.color }, !!imageId || !!ownedId);
 
-  const engineInput: EngineInput | null = useMemo(
-    () => (anchor ? { anchor, anchorOwned: studio.anchorOwned, wardrobe, profile, occasion: studio.occasion, nudges } : null),
-    [anchor, studio.anchorOwned, wardrobe, profile, studio.occasion, nudges],
-  );
-  const ready = !!attrs.category;
-  const draft = useMemo(() => (attrs.category ? makeGarment({ ...attrs, imageId, imageUrl, name: text.trim() && tab === "describe" ? text.trim().replace(/^./, (c) => c.toUpperCase()) : urlInfo?.title?.slice(0, 70) || undefined }) : null), [attrs, imageId, imageUrl, text, tab, urlInfo]);
+  useEffect(() => { setFilters({}); }, [roleIdx, step]);
+  useEffect(() => { if (step === "outfit" && !shoe && shoes[0]) setShoe(shoes[0]); }, [step, shoe, shoes]);
 
-  const run = useCallback(async (g: Garment, opts?: { nudges?: Nudge[]; occasion?: string; owned?: boolean }) => {
-    const nn = opts?.nudges ?? nudges;
-    const occ = opts?.occasion ?? occasion;
-    set({ studio: { anchor: g, anchorOwned: opts?.owned ?? true, looks: studio.anchor?.id === g.id ? studio.looks : undefined, occasion: occ } });
-    setBusy("Styling…");
-    const res = await requestLooks({ anchor: g, anchorOwned: opts?.owned ?? true, nudges: nn, wardrobe, profile, occasion: occ, mode: "explore" });
-    setBusy(null);
-    setEngine(res.engine);
-    setNotice(res.notice);
-    setSel(0);
-    setFocus(undefined);
-    set({ studio: { anchor: g, anchorOwned: opts?.owned ?? true, looks: res.looks, occasion: occ } });
-    rememberShown(res.looks);
-  }, [nudges, occasion, set, studio.anchor?.id, studio.looks, wardrobe, profile, rememberShown]);
-
-  const updateLook = (l: Look) => looks && set({ studio: { ...studio, looks: looks.map((x, i) => (i === sel ? l : x)) } });
-  const onDescribe = (v: string) => { setText(v); setAttrs((a) => ({ ...a, ...parseGarmentText(v) })); setImageId(undefined); setImageUrl(undefined); setOwnedSource(null); };
+  // ---------------- actions ----------------
+  const saveBody = (skip?: boolean) => {
+    const hc = parseFloat(h), wk = parseFloat(w);
+    set({ profile: { ...profile, askedBody: true, heightCm: !skip && hc > 90 && hc < 230 ? hc : profile.heightCm, weightKg: !skip && wk > 25 && wk < 250 ? wk : profile.weightKg } });
+    setStep(anchor && chosen.length ? "outfit" : "intent");
+  };
+  const fromText = () => {
+    const p = parseGarmentText(text);
+    setAttrs(p);
+    setImageId(undefined); setOwnedId(undefined);
+    setStep(p.category ? "garment" : "piece");
+  };
+  const pickOccasion = (id: string) => { setOccasion(id === "specific" ? undefined : id); setStep("piece"); };
+  const pickType = (cat: Category) => { setAttrs((a) => ({ ...a, category: cat })); setStep("garment"); };
+  const pickOwned = (id: string) => { const it = wardrobe.find((x) => x.id === id); if (!it) return; setOwnedId(id); setAttrs(it); setStep("pair"); setRoleIdx(0); };
 
   const onPhoto = async (file?: File) => {
     if (!file) return;
-    setBusy("Reading your garment…");
+    setBusy("Reading your photo…");
     try {
-      const small = await resizeDataUrl(await fileToDataUrl(file), 900, 0.86);
+      const small = await resizeDataUrl(await fileToDataUrl(file), 1000, 0.88);
       const id = uid("g_");
       await putImage(id, small);
-      setImageId(id); setImageUrl(undefined); setAiDetected(false); setOwnedSource(null);
+      setImageId(id);
       const dc = await dominantColor(small);
-      setAttrs((a) => ({ ...a, color: dc.name, colorHex: dc.hex }));
+      setAttrs((a) => ({ ...a, color: a.color ?? dc.name, colorHex: a.colorHex ?? dc.hex }));
       if (status?.claude) {
-        setBusy("Recognising with AI…");
         const res = await fetch("/api/analyze-garment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: small }) });
         const data = await res.json().catch(() => ({}));
-        if (res.ok && data.attributes) { setAttrs({ ...data.attributes }); setText(data.attributes.name ?? ""); setAiDetected(true); }
-        else toast(data.error ?? "Couldn't recognise it — set the details below.");
+        if (res.ok && data.attributes) {
+          const a = data.attributes;
+          setAttrs((x) => ({ ...x, category: x.category ?? a.category, fabric: x.fabric ?? a.fabric, silhouette: x.silhouette ?? a.silhouette, length: x.length ?? a.length, fit: x.fit ?? a.fit }));
+        }
       }
-    } catch { toast("That photo couldn't be read."); }
+    } catch { toast("That photo couldn't be read"); }
     setBusy(null);
   };
+  const setAnswer = (q: Question, v: string) => setAttrs((a) => ({ ...a, [q.key]: a[q.key] === v ? undefined : v }));
+  const setShade = (name: string, hex: string) => setAttrs((a) => ({ ...a, shade: name.toLowerCase(), colorHex: hex, color: a.color ?? nearestColor(hex).name }));
 
-  const onUrl = async () => {
-    setBusy("Reading product page…");
-    setUrlInfo(null);
-    try {
-      const res = await fetch("/api/product-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url }) });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.attributes) throw new Error(data.error || "LINK_UNAVAILABLE");
-      setAttrs((a) => ({ ...a, ...data.attributes })); setImageUrl(data.image); setImageId(undefined); setUrlInfo({ title: data.title, source: data.source });
-      if (!data.attributes.category) toast("Found it — please choose the category below.");
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "";
-      toast(!msg || msg === "LINK_UNAVAILABLE" || /fetch|network|load/i.test(msg) ? "Reading product links needs the MY GALA server. Describe the garment instead." : msg);
-    }
-    setBusy(null);
+  const buildLook = (): Look | null => {
+    if (!anchor) return null;
+    const pieces: Piece[] = [{ role: roleOf(anchor.category), slot: "anchor", garment: anchor, key: "anchor", owned: true, anchor: true }];
+    for (const o of chosen) pieces.push({ role: roleOf(o.category), slot: o.role, garment: optionToGarment(o), key: o.id, owned: false });
+    if (shoe) pieces.push({ role: "footwear", slot: "footwear", garment: optionToGarment(shoe), key: shoe.id, owned: false });
+    if (extras.accessories) acc.forEach((a, i) => pieces.push({ role: ["bag", "clutch", "potli"].includes(a.category) ? "bag" : ["belt", "watch", "sunglasses", "scarf"].includes(a.category) ? "accessory" : "jewellery", slot: `acc-${i}`, garment: optionToGarment(a), key: a.id, owned: false }));
+    return {
+      id: uid("look_"), direction: "minimal", title: `${cap(anchor.color)} ${categoryLabel(anchor.category)}`, pieces,
+      palette: Array.from(new Set(pieces.map((p) => p.garment.color))).map((n) => ({ name: n, hex: hexOf(n) })),
+      why: [...chosen.map((o) => o.why), ...tips], occasions: occasion ? [cap(occasion)] : [], annotations: [], notes: pose ? [`Pose: ${pose}`] : undefined, engine: "rules",
+    };
   };
 
-  const toggleNudge = (n: Nudge) => {
-    const opposite: Partial<Record<Nudge, Nudge>> = { formal: "casual", casual: "formal", minimal: "experimental", experimental: "minimal" };
-    const next = nudges.includes(n) ? nudges.filter((x) => x !== n) : [...nudges.filter((x) => x !== opposite[n]), n];
-    setNudges(next);
-    if (anchor) run(anchor, { nudges: next, owned: studio.anchorOwned });
-  };
-  const tryOn = (l: Look) => { set({ tryOn: { look: l, variants: looks ?? [l] } }); router.push("/try-on"); };
+  const progress = ["intent", "piece", "garment", "pair", "outfit"].indexOf(step);
 
-  const pickAesthetic = (a: string) => {
-    const p = AESTHETIC_PRESETS[a];
-    setNudges(p.nudges); setAttrs(parseGarmentText(p.text)); setText(p.text);
-    run(makeGarment({ ...parseGarmentText(p.text), name: p.text }), { nudges: p.nudges, owned: false });
-  };
-  const pickOccasion = (o: string) => {
-    setOccasion(o);
-    const own = wardrobe.filter((w) => w.occasion?.includes(o) && !["footwear", "jewellery", "bag", "accessory"].includes(roleOf(w.category)));
-    if (own.length) run(own[Math.floor(Math.random() * own.length)], { occasion: o, owned: true });
-    else { const t = OCCASION_PRESETS[o] ?? "White linen shirt"; setAttrs(parseGarmentText(t)); setText(t); run(makeGarment({ ...parseGarmentText(t), name: t }), { occasion: o, owned: false }); }
-  };
-
-  const tabs: [Tab, string][] = [["describe", "Describe"], ["upload", "Upload"], ["wardrobe", "Wardrobe"], ["link", "Link"], ["aesthetic", "Aesthetic"], ["occasion", "Occasion"]];
-
+  // ---------------- render ----------------
   return (
-    <main className="studio">
-      {/* ---------- 1. SOURCE ---------- */}
-      <section className="st-source" aria-label="Choose a garment">
-        <h1 className="display h-md">Studio</h1>
-        <div className="tabs wrap" role="tablist">
-          {tabs.map(([t, l]) => <button key={t} role="tab" aria-selected={tab === t} className={cx("tab", tab === t && "on")} onClick={() => setTab(t)}>{l}</button>)}
-        </div>
+    <main className="stylist fade-in">
+      {step !== "body" && (
+        <nav className="st-steps" aria-label="Progress">
+          {["Occasion", "Your piece", "Pairing", "Outfit"].map((l, i) => {
+            const idx = i === 0 ? 0 : i + 1;
+            const on = progress >= idx;
+            return <span key={l} className={cx(on && "on", progress === idx && "cur")}>{l}</span>;
+          })}
+        </nav>
+      )}
 
-        {tab === "describe" && (
-          <div className="stack">
-            <input className="input underline" value={text} placeholder="Black blazer, gold saree…" aria-label="Describe the garment" onChange={(e) => onDescribe(e.target.value)} onKeyDown={(e) => e.key === "Enter" && draft && run(draft)} />
-            <div className="chips">{EXAMPLES.map((e) => <button key={e} className="chip" onClick={() => onDescribe(e)}>{e}</button>)}</div>
+      {/* ---------- BODY (optional, once) ---------- */}
+      {step === "body" && (
+        <section className="st-panel narrow">
+          <h1 className="display h-lg">A little about you</h1>
+          <p className="muted small">Optional. Used only as a rough guide for proportions. It never judges your body, and you can change it in Profile.</p>
+          <div className="two">
+            <label className="field"><span>Height (cm)</span><input className="input" inputMode="decimal" placeholder="e.g. 163" value={h} onChange={(e) => setH(e.target.value)} /></label>
+            <label className="field"><span>Weight (kg)</span><input className="input" inputMode="decimal" placeholder="e.g. 58" value={w} onChange={(e) => setW(e.target.value)} /></label>
           </div>
-        )}
-        {tab === "upload" && (
-          <div className="stack">
-            <label className="drop" style={{ minHeight: 160 }}>
-              <input type="file" accept="image/*" onChange={(e) => onPhoto(e.target.files?.[0])} aria-label="Upload a clothing image" />
-              {photoSrc ? <img src={photoSrc} alt="Garment" style={{ maxHeight: 180, objectFit: "contain" }} /> : (
-                <div className="stack-sm" style={{ justifyItems: "center" }}><Icon name="upload" size={20} /><span className="eyebrow">Upload</span></div>
-              )}
-            </label>
-            {aiDetected && <span className="tag dark" style={{ justifySelf: "start" }}>AI-detected · please check</span>}
-          </div>
-        )}
-        {tab === "wardrobe" && (wardrobe.length === 0 ? (
-          <div className="empty"><span className="small">Your wardrobe is empty.</span><button className="btn sm" onClick={() => router.push("/wardrobe")}>Open My Wardrobe</button></div>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(70px, 1fr))", gap: 6 }}>
-            {wardrobe.map((w) => (
-              <button key={w.id} title={w.name} onClick={() => { setOwnedSource(w); setAttrs(w); setText(w.name); setImageId(w.imageId); }} className="w-item plain" style={{ outline: ownedSource?.id === w.id ? "2px solid var(--ink)" : undefined }}>
-                <div className="img" style={{ aspectRatio: "1" }}><Thumb g={w} /></div>
+          <div className="row"><button className="btn" onClick={() => saveBody()}>Continue</button><button className="link-btn" onClick={() => saveBody(true)}>Skip</button></div>
+        </section>
+      )}
+
+      {/* ---------- INTENT ---------- */}
+      {step === "intent" && (
+        <section className="st-panel">
+          <h1 className="display h-lg center">What are you looking for today?</h1>
+          <div className="occ-grid">
+            {OCCASIONS.map((o) => (
+              <button key={o.id} className="occ" onClick={() => pickOccasion(o.id)}>
+                <CampaignPhoto prompt={o.prompt} alt={o.label} />
+                <span>{o.label}</span>
               </button>
             ))}
           </div>
-        ))}
-        {tab === "link" && (
-          <div className="stack">
-            <div className="row" style={{ flexWrap: "nowrap", gap: 8 }}>
-              <input className="input" value={url} placeholder="https://store.com/products/…" aria-label="Product URL" onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === "Enter" && onUrl()} />
-              <button className="btn sm" style={{ height: 44 }} disabled={!url} onClick={onUrl}>Read</button>
-            </div>
-            {urlInfo && <div className="small"><span className="tiny muted">{urlInfo.source}</span><br />{urlInfo.title}</div>}
+          <div className="ask">
+            <input className="input underline" aria-label="Describe what you have in mind" placeholder="Or describe it — “I want to wear a yellow skirt”" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && text.trim() && fromText()} />
+            <button className="btn" disabled={!text.trim()} onClick={fromText}>Go</button>
           </div>
-        )}
-        {tab === "aesthetic" && <div className="chips">{AESTHETICS.map((a) => <button key={a} className="chip" onClick={() => pickAesthetic(a)}>{a}</button>)}</div>}
-        {tab === "occasion" && <div className="chips">{ATTRIBUTE_OPTIONS.occasion.map((o) => <button key={o} className={cx("chip", occasion === o && "on")} onClick={() => pickOccasion(o)}>{o}</button>)}</div>}
+        </section>
+      )}
 
-        {!["aesthetic", "occasion"].includes(tab) && (
-          <>
-            {tab === "wardrobe" && ownedSource ? <span className="small">{ownedSource.name}</span> : (
-              <details open={tab === "upload" || !!attrs.category}>
-                <summary className="eyebrow" style={{ cursor: "pointer", marginBottom: 12 }}>Details +</summary>
-                <GarmentEditor value={attrs} onChange={setAttrs} />
-              </details>
+      {/* ---------- PIECE TYPE ---------- */}
+      {step === "piece" && (
+        <section className="st-panel">
+          <button className="back" onClick={() => setStep("intent")}><Icon name="back" size={14} /> Back</button>
+          <h1 className="display h-lg center">What would you like to wear?</h1>
+          <div className="type-grid">
+            {PIECE_TYPES.map((t) => (
+              <button key={t.cat} className={cx("type", attrs.category === t.cat && "on")} onClick={() => pickType(t.cat)}>{t.label}</button>
+            ))}
+          </div>
+          {wardrobe.length > 0 && (
+            <>
+              <span className="eyebrow center-block">Or something you own</span>
+              <div className="own-row">
+                {wardrobe.filter((x) => !["footwear", "jewellery", "bag", "accessory"].includes(roleOf(x.category))).slice(0, 12).map((x) => (
+                  <button key={x.id} className="own" onClick={() => pickOwned(x.id)}><GarmentPhoto g={x} /><span>{x.name}</span></button>
+                ))}
+              </div>
+            </>
+          )}
+        </section>
+      )}
+
+      {/* ---------- YOUR GARMENT ---------- */}
+      {step === "garment" && attrs.category && (
+        <section className="st-split">
+          <aside className="st-preview">
+            {anchor && <GarmentPhoto g={anchor} className="big" />}
+            <span className="eyebrow">Your piece</span>
+            <span className="small">{anchor?.name}</span>
+          </aside>
+          <div className="st-form">
+            <button className="back" onClick={() => setStep("piece")}><Icon name="back" size={14} /> Back</button>
+            <h1 className="display h-md">Tell us about your {attrs.color && attrs.color !== "grey" ? `${attrs.shade ?? attrs.color} ` : ""}{categoryLabel(attrs.category).toLowerCase()}</h1>
+            <div className="tabs" role="tablist">
+              {([["details", "Choose details"], ["photo", "Upload a photo"], ["describe", "Describe it"]] as const).map(([k, l]) => (
+                <button key={k} role="tab" aria-selected={mode === k} className={cx("tab", mode === k && "on")} onClick={() => setMode(k)}>{l}</button>
+              ))}
+            </div>
+
+            {mode === "photo" && (
+              <label className="drop" style={{ minHeight: 150 }}>
+                <input type="file" accept="image/*" aria-label="Upload a photo of your garment" onChange={(e) => onPhoto(e.target.files?.[0])} />
+                <span className="stack-sm" style={{ justifyItems: "center" }}><Icon name="camera" size={20} /><span className="eyebrow">{busy ?? (imageId ? "Replace photo" : "Upload your actual piece")}</span></span>
+              </label>
             )}
-            <button className="btn block" disabled={!(tab === "wardrobe" ? ownedSource : ready) || !!busy} onClick={() => (tab === "wardrobe" && ownedSource ? run(ownedSource, { owned: true }) : draft && run({ ...draft, name: draft.name || garmentName(draft) }))}>
-              {busy ?? "Style it"} <Icon name="arrow" />
-            </button>
-          </>
-        )}
-      </section>
+            {mode === "describe" && (
+              <textarea className="textarea" placeholder="e.g. mustard pleated midi skirt in satin" aria-label="Describe your garment"
+                onChange={(e) => { const p = parseGarmentText(e.target.value); setAttrs((a) => ({ ...a, ...Object.fromEntries(Object.entries(p).filter(([k, v]) => v && k !== "category")) })); }} />
+            )}
 
-      {/* ---------- 2. CANVAS ---------- */}
-      <section className="st-canvas" aria-label="Outfit canvas">
-        {!look ? (
-          <div className="st-empty">
-            {busy ? <span className="spin" /> : <span className="eyebrow">Start with one piece</span>}
-          </div>
-        ) : (
-          <>
-            <div className="st-canvas-head">
-              <div className="row" style={{ flexWrap: "nowrap" }}>
-                <div style={{ width: 44, height: 54, flex: "none", background: "var(--paper)" }}>{anchor && <Thumb g={anchor} />}</div>
-                <div style={{ minWidth: 0 }}>
-                  <h2 className="display h-sm">{anchor?.name}</h2>
-                  <span className="eyebrow">{SHORT[look.direction]}</span>
+            <div className="q">
+              <span className="eyebrow">Colour {missing.includes("colour") && <i className="need">needed</i>}</span>
+              <div className="swatches">
+                {BASE_COLORS.map((c) => <button key={c.name} title={c.name} aria-label={c.name} className={cx("swatch-btn", attrs.color === c.name && "on")} style={{ background: c.hex }} onClick={() => setAttrs((a) => ({ ...a, color: c.name, colorHex: c.hex, shade: undefined }))} />)}
+              </div>
+              {attrs.color && (
+                <div className="shades">
+                  <span className="eyebrow">Exact shade</span>
+                  <div className="chips">
+                    {shadesFor(attrs.color).map((s) => <button key={s.name} className={cx("chip", attrs.shade === s.name.toLowerCase() && "on")} onClick={() => setShade(s.name, s.hex)}><span className="sw" style={{ background: s.hex }} />{s.name}</button>)}
+                    <label className="chip" style={{ position: "relative" }}>Custom<input type="color" aria-label="Custom shade" value={attrs.colorHex ?? hexOf(attrs.color)} onChange={(e) => setShade("custom", e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }} /></label>
+                  </div>
                 </div>
+              )}
+            </div>
+
+            {questionsFor(attrs.category).map((q) => (
+              <div className="q" key={q.key}>
+                <span className="eyebrow">{q.label} {missing.includes(q.label.toLowerCase()) && <i className="need">needed</i>}</span>
+                <div className="chips">{q.options.map((o) => <button key={o} className={cx("chip", attrs[q.key] === o && "on")} onClick={() => setAnswer(q, o)}>{o}</button>)}</div>
               </div>
-              <div className="row">
-                {engine && <EngineBadge engine={engine} />}
-                <button className="btn ghost sm" onClick={() => { saveLook({ ...look, id: look.id + "_" + Date.now().toString(36) }); toast("Added to My Collection."); }}><Icon name="heart" size={13} /> Save</button>
-                <button className="btn sm" onClick={() => tryOn(look)}><Icon name="mirror" size={13} /> Try on</button>
+            ))}
+
+            <div className="row">
+              <button className="btn" disabled={missing.length > 0} onClick={() => { setRoleIdx(0); setPicks({}); setStep("pair"); }}>See what goes with it <Icon name="arrow" size={14} /></button>
+              {missing.length > 0 && <span className="tiny muted">Still need: {missing.join(", ")}{!imageId ? " — or upload a photo" : ""}</span>}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ---------- PAIRING ---------- */}
+      {step === "pair" && anchor && role && (
+        <section className="st-split">
+          <aside className="st-preview pair">
+            <div className="pair-stack">
+              <GarmentPhoto g={anchor} className="big" />
+              {picks[role] ? <GarmentPhoto g={optionToGarment(picks[role]!)} className="big" /> : <div className="gphoto big placeholder"><span className="eyebrow">Choose a {ROLE_LABEL[role].toLowerCase().replace(/s$/, "")}</span></div>}
+            </div>
+            {picks[role] && <p className="small" style={{ margin: 0 }}>{picks[role]!.why}</p>}
+          </aside>
+          <div className="st-form">
+            <button className="back" onClick={() => (roleIdx > 0 ? setRoleIdx(roleIdx - 1) : setStep(ownedId ? "piece" : "garment"))}><Icon name="back" size={14} /> Back</button>
+            <h1 className="display h-md">{ROLE_LABEL[role]} for your {anchor.shade ?? anchor.color} {categoryLabel(anchor.category).toLowerCase()}</h1>
+            <div className="filters">
+              <div className="chips">
+                <button className={cx("chip", !filters.color && "on")} onClick={() => setFilters((f) => ({ ...f, color: undefined }))}>All colours</button>
+                {colours.map((c) => <button key={c} className={cx("chip", filters.color === c && "on")} onClick={() => setFilters((f) => ({ ...f, color: f.color === c ? undefined : c }))}><span className="sw" style={{ background: hexOf(c) }} />{cap(c)}</button>)}
+              </div>
+              <div className="chips">
+                <button className={cx("chip", !filters.shape && "on")} onClick={() => setFilters((f) => ({ ...f, shape: undefined }))}>{shapeKey === "neckline" ? "All necklines" : shapeKey === "fit" ? "All fits" : "All shapes"}</button>
+                {shapes.map((s) => <button key={s} className={cx("chip", filters.shape === s && "on")} onClick={() => setFilters((f) => ({ ...f, shape: f.shape === s ? undefined : s }))}>{s}</button>)}
               </div>
             </div>
-            {notice && <div className="demo-banner" style={{ margin: "10px 22px 0" }}><span>{notice}</span></div>}
-            <LookBoard key={look.id} pieces={look.pieces} annotations={look.annotations} activeSlot={focus} onPieceClick={(p) => setFocus(p.slot)} />
-            <div className="st-tools">
-              <div className="nudges">{NUDGES.map((n) => <button key={n.id} className={cx("chip", nudges.includes(n.id) && "on")} onClick={() => toggleNudge(n.id)} disabled={!!busy}>{n.label}</button>)}</div>
-              <button className="link-btn" disabled={!!busy} onClick={() => anchor && run(anchor, { owned: studio.anchorOwned })}>{busy ?? "Refresh"}</button>
-            </div>
-            <div className="st-film" role="tablist" aria-label="Looks">
-              {looks!.map((l, i) => (
-                <button key={l.id} role="tab" aria-selected={i === sel} className={cx(i === sel && "on")} onClick={() => { setSel(i); setFocus(undefined); }}>
-                  <div className="mini"><LookBoard pieces={l.pieces} compact /></div>
-                  <b>{SHORT[l.direction]}</b>
+            <div className="opt-grid">
+              {shown.map((o) => (
+                <button key={o.id} className={cx("opt", picks[role]?.id === o.id && "on")} onClick={() => setPicks((p) => ({ ...p, [role]: o }))}>
+                  <GarmentPhoto g={optionToGarment(o)} />
+                  <span className="opt-name">{o.name}</span>
                 </button>
               ))}
             </div>
-          </>
-        )}
-      </section>
-
-      {/* ---------- 3. CONTEXTUAL SUGGESTIONS ---------- */}
-      <section className="st-suggest" aria-label="Styling suggestions">
-        {look && engineInput && anchor ? (
-          <>
-            <h2 className="display h-sm" style={{ marginBottom: 6 }}>Style it</h2>
-            <details className="why-toggle" style={{ marginBottom: 6 }}>
-              <summary>Why it works +</summary>
-              <ul className="why small">{look.why.map((w, i) => <li key={i}>{w}</li>)}</ul>
-              {look.notes && <div className="hand-notes" style={{ marginTop: 8 }}>{look.notes.map((n) => <span key={n}>{n}</span>)}</div>}
-            </details>
-            <div className="opt-group">
-              <div className="eyebrow">This look</div>
-              <div className="stack-sm">
-                {look.pieces.map((p) => (
-                  <div key={p.slot} className="row" style={{ flexWrap: "nowrap", gap: 8, justifyContent: "space-between" }}>
-                    <button className="small" style={{ background: "none", border: 0, padding: 0, textAlign: "left", cursor: "pointer", textDecoration: focus === p.slot ? "underline" : undefined }} onClick={() => setFocus(p.slot)}>
-                      <span className="sw" style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: p.garment.colorHex, marginRight: 8, border: "1px solid rgba(0,0,0,.15)" }} />{p.garment.name}
-                    </button>
-                    <span className="row" style={{ gap: 4, flexWrap: "nowrap" }}>
-                      {!p.anchor && (p.owned ? <span className="tag owned">Owned</span> : <span className="tag suggested">Suggested</span>)}
-                      {!p.anchor && <button className="icon-btn" style={{ width: 26, height: 26 }} title="Swap this piece only" aria-label={`Swap ${p.garment.name}`} onClick={() => updateLook(regeneratePiece(look, p.slot, engineInput, Date.now()))}><Icon name="refresh" size={12} /></button>}
-                    </span>
-                  </div>
-                ))}
-              </div>
+            <div className="row">
+              <button className="btn" disabled={!picks[role]} onClick={() => (roleIdx < roles.length - 1 ? setRoleIdx(roleIdx + 1) : setStep("outfit"))}>{roleIdx < roles.length - 1 ? "Next" : "See the outfit"} <Icon name="arrow" size={14} /></button>
+              {role === "layer" && <button className="link-btn" onClick={() => setStep("outfit")}>Skip the layer</button>}
             </div>
-            <Suggestions look={look} input={engineInput} onChange={updateLook} focus={focus} onFocus={setFocus} />
-          </>
-        ) : (
-          <h2 className="display h-sm" style={{ color: "var(--grey)" }}>Style it</h2>
-        )}
-      </section>
+          </div>
+        </section>
+      )}
+
+      {/* ---------- OUTFIT ---------- */}
+      {step === "outfit" && anchor && (
+        <section className="st-outfit">
+          <div className="outfit-head">
+            <button className="back" onClick={() => { setRoleIdx(Math.max(0, roles.length - 1)); setStep("pair"); }}><Icon name="back" size={14} /> Back</button>
+            <h1 className="display h-md">Your outfit</h1>
+            <div className="row">
+              <button className="btn ghost" onClick={() => { const l = buildLook(); if (l) { saveLook(l); toast("Saved"); } }}><Icon name="heart" size={14} /> Save</button>
+              <button className="btn" onClick={() => { const l = buildLook(); if (l) { set({ tryOn: { look: l, variants: [l] } }); router.push("/try-on" + (pose ? "?pose=" + encodeURIComponent(pose) : "")); } }}><Icon name="mirror" size={14} /> Try it on</button>
+            </div>
+          </div>
+          <div className="outfit-row">
+            <figure><GarmentPhoto g={anchor} /><figcaption>{anchor.name}<i>Yours</i></figcaption></figure>
+            {chosen.map((o) => <figure key={o.id}><GarmentPhoto g={optionToGarment(o)} /><figcaption>{o.name}</figcaption></figure>)}
+            {shoe && <figure className="shoe"><GarmentPhoto g={optionToGarment(shoe)} /><figcaption>{shoe.name}</figcaption></figure>}
+            {extras.accessories && acc.map((a) => <figure key={a.id} className="shoe"><GarmentPhoto g={optionToGarment(a)} /><figcaption>{a.name}</figcaption></figure>)}
+          </div>
+
+          <div className="extras">
+            <button className={cx("chip", extras.footwear && "on")} onClick={() => setExtras((x) => ({ ...x, footwear: !x.footwear }))}>Change footwear</button>
+            <button className={cx("chip", extras.accessories && "on")} onClick={() => setExtras((x) => ({ ...x, accessories: !x.accessories }))}>Add accessories</button>
+            <button className={cx("chip", extras.poses && "on")} onClick={() => setExtras((x) => ({ ...x, poses: !x.poses }))}>Explore poses</button>
+          </div>
+          {extras.footwear && (
+            <div className="opt-grid small-grid">
+              {shoes.map((s) => <button key={s.id} className={cx("opt", shoe?.id === s.id && "on")} onClick={() => setShoe(s)}><GarmentPhoto g={optionToGarment(s)} /><span className="opt-name">{s.name}</span></button>)}
+            </div>
+          )}
+          {extras.accessories && (
+            <div className="opt-grid small-grid">
+              {accs.map((a) => <button key={a.id} className={cx("opt", acc.some((x) => x.id === a.id) && "on")} onClick={() => setAcc((l) => (l.some((x) => x.id === a.id) ? l.filter((x) => x.id !== a.id) : [...l, a]))}><GarmentPhoto g={optionToGarment(a)} /><span className="opt-name">{a.name}</span></button>)}
+            </div>
+          )}
+          {extras.poses && (
+            <div className="chips">
+              {POSES.map((p) => <button key={p} className={cx("chip", pose === p && "on")} onClick={() => setPose(pose === p ? undefined : p)}>{p}</button>)}
+              <span className="tiny muted" style={{ alignSelf: "center" }}>Poses are applied when you try the outfit on.</span>
+            </div>
+          )}
+
+          {tips.length > 0 && (
+            <div className="advice">
+              <span className="eyebrow">Stylist notes{profile.heightCm ? ` · ${profile.heightCm} cm` : ""}</span>
+              <ul className="why">{tips.map((t) => <li key={t}>{t}</li>)}</ul>
+              {!profile.heightCm && <button className="link-btn" onClick={() => setStep("body")}>Add your height for proportion tips</button>}
+            </div>
+          )}
+        </section>
+      )}
     </main>
   );
-}
-
-export default function StudioPage() {
-  return <Suspense fallback={null}><StudioInner /></Suspense>;
 }

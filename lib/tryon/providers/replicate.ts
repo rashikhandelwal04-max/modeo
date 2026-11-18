@@ -11,11 +11,11 @@ const BASE = "https://api.replicate.com/v1";
 const token = () => process.env.REPLICATE_API_TOKEN || "";
 const model = () => process.env.REPLICATE_TRYON_MODEL || "black-forest-labs/flux-kontext-pro";
 
-export function buildPrompt(desc: string) {
+export function buildPrompt(desc: string, pose?: string) {
   return (
     `Dress the person in this photograph in the following outfit: ${desc}. ` +
-    "Change only the clothing, footwear and accessories. Keep the person's face, identity, skin tone, hair, body shape, pose, " +
-    "camera angle, lighting and background exactly the same. Photorealistic fashion photograph, natural fabric drape."
+    (pose ? `Change their pose to: ${pose}. Change only the clothing and the pose. Keep the person's face, identity, skin tone, hair, body proportions, ` : "Change only the clothing and footwear. Keep the person's face, identity, skin tone, hair, body proportions, pose, ") +
+    "lighting and background exactly the same. The clothes must fit this person's body naturally. Photorealistic fashion photograph, realistic fabric drape."
   );
 }
 
@@ -29,7 +29,7 @@ export const replicate: TryOnProvider = {
       method: "POST",
       headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        input: { prompt: buildPrompt(req.outfitDescription), input_image: req.personImage, output_format: "jpg", aspect_ratio: "match_input_image" },
+        input: { prompt: buildPrompt(req.outfitDescription, req.pose), input_image: req.personImage, output_format: "jpg", aspect_ratio: "match_input_image" },
       }),
       signal: AbortSignal.timeout(30000),
     });

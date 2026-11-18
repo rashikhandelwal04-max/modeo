@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useApp } from "@/lib/store/state";
 import { useImage } from "@/lib/store/images";
@@ -10,8 +10,7 @@ import { cx } from "@/lib/util";
 
 export const NAV = [
   { href: "/home", label: "Home", icon: "home" },
-  { href: "/edits", label: "Edits", icon: "bookmark" },
-  { href: "/studio", label: "Studio", icon: "sparkle" },
+  { href: "/studio", label: "Your Edit", icon: "sparkle" },
   { href: "/wardrobe", label: "Wardrobe", icon: "hanger" },
   { href: "/try-on", label: "Fitting Room", icon: "mirror" },
   { href: "/looks", label: "Collection", icon: "heart" },
@@ -19,12 +18,10 @@ export const NAV = [
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
-  const router = useRouter();
-  const { ready, onboarded, photo } = useApp();
+    const { ready, photo } = useApp();
   const avatar = useImage(photo?.imageId);
   const [menu, setMenu] = useState(false);
 
-  useEffect(() => { if (ready && !onboarded) router.replace("/welcome"); }, [ready, onboarded, router]);
   useEffect(() => setMenu(false), [path]);
   if (!ready) return <div style={{ minHeight: "100dvh" }} />;
   const on = (href: string) => path === href || path.startsWith(href + "/");

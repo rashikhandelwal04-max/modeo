@@ -28,6 +28,7 @@ export async function POST(req: Request) {
     garmentImage,
     garmentCategory: ["tops", "bottoms", "one-pieces"].includes(body.garmentCategory) ? body.garmentCategory : "auto",
     outfitDescription: String(body.outfitDescription ?? "").slice(0, 1200),
+    pose: typeof body.pose === "string" ? body.pose.slice(0, 60) : undefined,
   };
   const { provider, reason } = selectProvider(request);
   if (!provider) {

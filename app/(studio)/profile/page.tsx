@@ -80,6 +80,14 @@ export default function Profile() {
 
         <div>
           <section className="section">
+            <h3>Height &amp; weight</h3>
+            <span className="small muted">Optional, approximate. Used only for proportion tips.</span>
+            <div className="row" style={{ flexWrap: "nowrap", maxWidth: 360 }}>
+              <label className="field"><span>Height (cm)</span><input className="input" inputMode="decimal" value={profile.heightCm ?? ""} onChange={(e) => up({ heightCm: parseFloat(e.target.value) || undefined, askedBody: true })} /></label>
+              <label className="field"><span>Weight (kg)</span><input className="input" inputMode="decimal" value={profile.weightKg ?? ""} onChange={(e) => up({ weightKg: parseFloat(e.target.value) || undefined, askedBody: true })} /></label>
+            </div>
+          </section>
+          <section className="section">
             <h3>Aesthetics</h3>
             <Chips options={AESTHETICS} value={profile.aesthetics} onChange={(aesthetics) => up({ aesthetics })} />
           </section>
@@ -143,7 +151,7 @@ export default function Profile() {
           <h2 className="display h-md" style={{ margin: 0 }}>Delete everything?</h2>
           <p className="small">This permanently removes your photograph, wardrobe, saved looks and preferences from this device.</p>
           <div className="row">
-            <button className="btn" style={{ background: "var(--danger)", borderColor: "var(--danger)" }} onClick={async () => { await resetAll(); router.replace("/welcome"); }}>Delete all</button>
+            <button className="btn" style={{ background: "var(--danger)", borderColor: "var(--danger)" }} onClick={async () => { await resetAll(); router.replace("/home"); }}>Delete all</button>
             <button className="btn ghost" onClick={() => setConfirmReset(false)}>Cancel</button>
           </div>
         </div>

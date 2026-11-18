@@ -50,6 +50,10 @@ export interface GarmentAttributes {
   season?: Season[];
   style?: string[];
   detail?: string; // e.g. "gold detailing"
+  neckline?: string;
+  sleeve?: string;
+  rise?: string;
+  shade?: string; // the user's own name for the exact shade, e.g. "mustard"
 }
 
 export interface Garment extends GarmentAttributes {
@@ -133,6 +137,10 @@ export interface StyleProfile {
   affinity: Record<string, number>;
   /** recently shown item keys — used to avoid repetition */
   recent: string[];
+  /** optional, approximate inputs for proportion advice — never used to judge */
+  heightCm?: number;
+  weightKg?: number;
+  askedBody?: boolean;
 }
 
 export interface PhotoRecord {
@@ -147,4 +155,6 @@ export interface IntegrationStatus {
   claudeModel?: string;
   tryOn: "fashn" | "replicate" | null;
   tryOnProviders: { fashn: boolean; replicate: boolean };
+  /** photorealistic garment image generation available */
+  imageGen?: boolean;
 }

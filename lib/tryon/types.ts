@@ -6,6 +6,8 @@ export interface TryOnRequest {
   garmentCategory?: "tops" | "bottoms" | "one-pieces" | "auto";
   /** text description of the full outfit, for text-guided providers */
   outfitDescription: string;
+  /** optional pose change (text-guided providers only) */
+  pose?: string;
 }
 
 export interface TryOnPoll {
