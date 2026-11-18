@@ -1,9 +1,9 @@
 "use client";
+import { useEffect, useState } from "react";
 import { useImage } from "@/lib/store/images";
-import { useGarmentImage } from "@/lib/garmentImage";
+import { freeImageUrl, useGarmentImage } from "@/lib/garmentImage";
 import { productPrompt } from "@/lib/stylist";
 import { useApp } from "@/lib/store/state";
-import { hexOf } from "@/lib/colors";
 import { cx } from "@/lib/util";
 import type { Category } from "@/lib/types";
 
@@ -23,27 +23,29 @@ export interface PhotoSubject {
 }
 
 /**
- * A garment shown as a photograph: the user's own photo if they uploaded one, otherwise a
- * photorealistic generated product shot. If no image service is connected, a plain colour
- * card with the garment's name is shown instead — never a drawing.
+ * A garment shown as a photograph. Order: the user's own photo → a photorealistic product shot
+ * from Replicate (if configured) → a photorealistic product shot from the free image service.
  */
-export default function GarmentPhoto({ g, className, label }: { g: PhotoSubject; className?: string; label?: boolean }) {
+export default function GarmentPhoto({ g, className, prompt: promptOverride }: { g: PhotoSubject; className?: string; label?: boolean; prompt?: string }) {
   const { status } = useApp();
   const own = useImage(g.imageId);
-  const prompt = own || g.imageUrl ? undefined : productPrompt({ ...g, shadeHex: g.colorHex });
-  const { src, loading } = useGarmentImage(prompt, !!status?.imageGen);
-  const hex = g.colorHex ?? hexOf(g.color ?? "grey");
-  const img = own ?? g.imageUrl ?? src;
+  const prompt = own || g.imageUrl ? undefined : promptOverride ?? productPrompt({ ...g, shadeHex: undefined });
+  const replicate = !!status?.imageGen;
+  const gen = useGarmentImage(replicate ? prompt : undefined, replicate);
+  const [attempt, setAttempt] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const src = own ?? g.imageUrl ?? (replicate ? gen.src : prompt && status ? freeImageUrl(prompt) + (attempt ? `&r=${attempt}` : "") : null);
+  useEffect(() => { setLoaded(false); setFailed(false); }, [src]);
   return (
-    <div className={cx("gphoto", className, !img && "no-photo", loading && "loading")}>
-      {img ? <img src={img} alt={g.name} referrerPolicy="no-referrer" loading="lazy" /> : (
-        <div className="swatch-card">
-          <span className="sw-field" style={{ background: hex }} />
-          <span className="sw-name">{g.name}</span>
-          {!loading && <span className="sw-note">{status?.imageGen === false ? "Photo preview needs the image service" : ""}</span>}
+    <div className={cx("gphoto", className, (!loaded || gen.loading) && !failed && "loading", failed && "failed")}>
+      {src && !failed && <img key={src} src={src} alt={g.name} referrerPolicy="no-referrer" onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />}
+      {failed && (
+        <div className="gphoto-fail">
+          <span>{g.name}</span>
+          <button type="button" className="link-btn" onClick={(e) => { e.stopPropagation(); setAttempt((a) => a + 1); }}>Retry photo</button>
         </div>
       )}
-      {label && img && <span className="gphoto-label">{g.name}</span>}
     </div>
   );
 }

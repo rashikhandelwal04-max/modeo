@@ -18,7 +18,7 @@ export interface TryOnPoll {
 }
 
 export interface TryOnProvider {
-  name: "fashn" | "replicate";
+  name: "fashn" | "replicate" | "huggingface";
   label: string;
   configured(): boolean;
   /** can this provider handle the request (e.g. does it need a garment image)? */

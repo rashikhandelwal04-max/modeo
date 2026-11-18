@@ -6,13 +6,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import GarmentPhoto from "@/components/GarmentPhoto";
-import CampaignPhoto from "@/components/CampaignPhoto";
+import EditorialImage from "@/components/EditorialImage";
 import { Icon } from "@/components/ui";
 import { useApp } from "@/lib/store/state";
 import { putImage } from "@/lib/store/images";
 import { dominantColor, fileToDataUrl, resizeDataUrl } from "@/lib/image";
 import { makeGarment, parseGarmentText } from "@/lib/parse";
-import { OCCASIONS } from "@/lib/editorial";
+import { IMAGES, OCCASIONS } from "@/lib/editorial";
+import { freeImageUrl, useGarmentImage } from "@/lib/garmentImage";
 import { COLORS, hexOf, nearestColor, cap } from "@/lib/colors";
 import { categoryLabel, roleOf } from "@/lib/taxonomy";
 import {
@@ -21,6 +22,41 @@ import {
 } from "@/lib/stylist";
 import type { Category, Garment, GarmentAttributes, Look, Piece } from "@/lib/types";
 import { cx, uid } from "@/lib/util";
+
+/** Match parsed words to the option labels ("straight" → "Straight", "full-length" → "Full-length") and keep the user's own shade word. */
+function normalise(p: Partial<GarmentAttributes>, text: string): Partial<GarmentAttributes> {
+  const out: Partial<GarmentAttributes> = { ...p };
+  if (p.category) {
+    for (const q of questionsFor(p.category)) {
+      const v = (p as Record<string, string | undefined>)[q.key];
+      const hit = q.options.find((o) => (v && o.toLowerCase() === v.toLowerCase()) || new RegExp(`\\b${o.toLowerCase().replace(/[-&]/g, ".")}\\b`).test(text.toLowerCase().replace(/-fit/g, "")));
+      if (hit) (out as Record<string, string>)[q.key] = hit;
+    }
+  }
+  const t = text.toLowerCase();
+  const m = /\b(jet[- ]black|off[- ]white|bottle[- ]green|navy[- ]blue|sky[- ]blue|baby[- ]pink|hot[- ]pink|dusty[- ]pink|[a-z]+ (?:yellow|red|blue|green|pink|black|white|grey|gray|brown|purple|orange)|mustard|butter|lemon|canary|marigold|ochre|ivory|cream|charcoal|camel|olive|emerald|maroon|wine|burgundy|beige|navy|teal|lilac|lavender|rust|coral|indigo)\b/.exec(t);
+  if (m && out.color && !/^(a|an|the|wear|want|my|to|some)\b/.test(m[1])) out.shade = m[1].replace("-", " ");
+  return out;
+}
+
+/** "Jet black full-length straight-fit trousers" — each detail once, in natural order. */
+function describe(a: Partial<GarmentAttributes>): string {
+  const bottoms = ["trousers", "jeans", "shorts", "palazzo", "churidar"].includes(a.category ?? "");
+  const words: string[] = [];
+  const push = (w?: string) => { if (!w) return; const lw = w.toLowerCase(); if (!words.some((x) => x.toLowerCase().replace("-fit", "") === lw.replace("-fit", ""))) words.push(lw); };
+  push(a.shade ?? a.color);
+  push(a.rise);
+  push(a.length);
+  push(a.fit ? (bottoms && /^(straight|slim|relaxed)$/i.test(a.fit) ? `${a.fit}-fit` : a.fit) : undefined);
+  push(a.silhouette);
+  push(a.neckline ? `${a.neckline}-neck`.replace(/-neck-neck$/i, "-neck").replace(/^(crew|collared|off-shoulder)-neck$/i, (m) => (/off/i.test(m) ? "off-shoulder" : m.replace("-neck", /collared/i.test(m) ? "" : "-neck"))) : undefined);
+  push(a.sleeve && a.sleeve !== "Short" ? `${a.sleeve.toLowerCase()}${a.sleeve === "Sleeveless" ? "" : "-sleeve"}` : undefined);
+  push(a.fabric);
+  push(a.detail && a.category === "saree" ? `with ${a.detail}` : undefined);
+  const cat = categoryLabel(a.category!).toLowerCase();
+  const text = [...words.filter((w) => !w.startsWith("with ")), cat, ...words.filter((w) => w.startsWith("with "))].join(" ").replace(/\s+/g, " ").trim();
+  return cap(text);
+}
 
 type Step = "body" | "intent" | "piece" | "garment" | "pair" | "outfit";
 
@@ -31,6 +67,31 @@ const PIECE_TYPES: { cat: Category; label: string }[] = [
 ];
 const POSES = ["Standing", "Walking", "Hand on hip", "Seated", "Over the shoulder"];
 const BASE_COLORS = COLORS.filter((c) => c.name !== "pearl");
+
+/** Stage C: the selected clothes shown together on a realistic (generated) model. */
+function ModelView({ anchor, picks, shoe, acc, pose }: { anchor: Garment; picks: Option[]; shoe: Option | null; acc: Option[]; pose?: string }) {
+  const { status } = useApp();
+  const [who, setWho] = useState<"woman" | "man">("woman");
+  const [failed, setFailed] = useState(false);
+  const items = [anchor.name, ...picks.map((p) => p.name), shoe?.name, ...acc.map((a) => a.name)].filter(Boolean).map((x) => x!.toLowerCase()).join(", ");
+  const prompt = `Full-length photorealistic fashion campaign photograph of a stylish ${who === "woman" ? "female" : "male"} model wearing exactly these clothes: ${items}. ${pose ? `Pose: ${pose.toLowerCase()}.` : "Standing naturally."} Minimalist light grey studio, soft natural light, realistic fabric and fit, sharp focus, head to toe in frame, no text.`;
+  const replicate = !!status?.imageGen;
+  const gen = useGarmentImage(replicate ? prompt : undefined, replicate);
+  const src = replicate ? gen.src : status ? freeImageUrl(prompt, 768, 1152) : null;
+  useEffect(() => setFailed(false), [src]);
+  return (
+    <figure className="model-view">
+      <div className={cx("gphoto", (gen.loading || !src) && !failed && "loading")} style={{ aspectRatio: "2 / 3" }}>
+        {src && !failed && <img key={src} src={src} alt="The outfit on a model" onError={() => setFailed(true)} />}
+        {failed && <div className="gphoto-fail"><span>The model photo couldn&apos;t load.</span></div>}
+      </div>
+      <figcaption>
+        <span className="eyebrow">On a model</span>
+        <span className="seg"><button className={cx(who === "woman" && "on")} onClick={() => setWho("woman")}>Woman</button><button className={cx(who === "man" && "on")} onClick={() => setWho("man")}>Man</button></span>
+      </figcaption>
+    </figure>
+  );
+}
 
 export default function YourEdit() {
   const { profile, set, wardrobe, status, saveLook, toast } = useApp();
@@ -57,9 +118,7 @@ export default function YourEdit() {
     if (!attrs.category) return null;
     const own = ownedId ? wardrobe.find((x) => x.id === ownedId) : undefined;
     if (own) return own;
-    const colorWord = attrs.shade ?? attrs.color ?? "";
-    const desc = [colorWord, attrs.silhouette, attrs.length, attrs.fit, attrs.rise, attrs.neckline ? `${attrs.neckline.toLowerCase()} neck` : "", attrs.fabric, categoryLabel(attrs.category).toLowerCase()].filter(Boolean).join(" ");
-    return makeGarment({ ...attrs, id: "anchor-" + (imageId ?? "draft"), imageId, name: cap(desc.replace(/\s+/g, " ").trim()) } as never);
+    return makeGarment({ ...attrs, id: "anchor-" + (imageId ?? "draft"), imageId, name: describe(attrs) } as never);
   }, [attrs, imageId, ownedId, wardrobe]);
 
   const roles = anchor ? rolesToFill(anchor.category) : [];
@@ -85,10 +144,12 @@ export default function YourEdit() {
     setStep(anchor && chosen.length ? "outfit" : "intent");
   };
   const fromText = () => {
-    const p = parseGarmentText(text);
+    const p = normalise(parseGarmentText(text), text);
     setAttrs(p);
-    setImageId(undefined); setOwnedId(undefined);
-    setStep(p.category ? "garment" : "piece");
+    setImageId(undefined); setOwnedId(undefined); setPicks({}); setRoleIdx(0);
+    if (!p.category) return setStep("piece");
+    // everything we need was in the sentence → show the garment and go straight to pairing
+    setStep(missingInfo(p, false).length === 0 ? "pair" : "garment");
   };
   const pickOccasion = (id: string) => { setOccasion(id === "specific" ? undefined : id); setStep("piece"); };
   const pickType = (cat: Category) => { setAttrs((a) => ({ ...a, category: cat })); setStep("garment"); };
@@ -166,7 +227,7 @@ export default function YourEdit() {
           <div className="occ-grid">
             {OCCASIONS.map((o) => (
               <button key={o.id} className="occ" onClick={() => pickOccasion(o.id)}>
-                <CampaignPhoto prompt={o.prompt} alt={o.label} />
+                <EditorialImage src={IMAGES[o.image]} alt={o.label} />
                 <span>{o.label}</span>
               </button>
             ))}
@@ -310,11 +371,14 @@ export default function YourEdit() {
               <button className="btn" onClick={() => { const l = buildLook(); if (l) { set({ tryOn: { look: l, variants: [l] } }); router.push("/try-on" + (pose ? "?pose=" + encodeURIComponent(pose) : "")); } }}><Icon name="mirror" size={14} /> Try it on</button>
             </div>
           </div>
+          <div className="outfit-stage">
+            <ModelView anchor={anchor} picks={chosen} shoe={shoe} acc={extras.accessories ? acc : []} pose={pose} />
           <div className="outfit-row">
             <figure><GarmentPhoto g={anchor} /><figcaption>{anchor.name}<i>Yours</i></figcaption></figure>
             {chosen.map((o) => <figure key={o.id}><GarmentPhoto g={optionToGarment(o)} /><figcaption>{o.name}</figcaption></figure>)}
             {shoe && <figure className="shoe"><GarmentPhoto g={optionToGarment(shoe)} /><figcaption>{shoe.name}</figcaption></figure>}
             {extras.accessories && acc.map((a) => <figure key={a.id} className="shoe"><GarmentPhoto g={optionToGarment(a)} /><figcaption>{a.name}</figcaption></figure>)}
+          </div>
           </div>
 
           <div className="extras">

@@ -153,8 +153,8 @@ export interface PhotoRecord {
 export interface IntegrationStatus {
   claude: boolean;
   claudeModel?: string;
-  tryOn: "fashn" | "replicate" | null;
-  tryOnProviders: { fashn: boolean; replicate: boolean };
+  tryOn: "fashn" | "replicate" | "huggingface" | null;
+  tryOnProviders: { fashn: boolean; replicate: boolean; huggingface?: boolean };
   /** photorealistic garment image generation available */
   imageGen?: boolean;
 }

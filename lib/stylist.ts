@@ -34,7 +34,7 @@ export function questionsFor(cat: Category): Question[] {
     case "trousers": case "jeans": case "shorts": case "palazzo": case "churidar":
       return [
         { key: "fit", label: "Fit", options: ["Wide-leg", "Straight", "Slim", "Flared", "Relaxed"], required: true },
-        { key: "rise", label: "Waist", options: ["High-waisted", "Mid-rise", "Low-rise"], required: true },
+        { key: "rise", label: "Waist", options: ["High-waisted", "Mid-rise", "Low-rise"] },
         { key: "length", label: "Length", options: ["Full-length", "Ankle", "Cropped"] },
         { key: "fabric", label: "Fabric", options: cat === "jeans" ? ["Denim"] : ["Wool", "Linen", "Cotton", "Satin", "Crepe", "Denim"] },
       ];
@@ -48,7 +48,7 @@ export function questionsFor(cat: Category): Question[] {
     case "shirt": case "tshirt": case "top": case "camisole": case "tank": case "knit": case "blouse": case "kurti":
       return [
         { key: "neckline", label: "Neckline", options: ["Crew", "V-neck", "Square", "Halter", "Off-shoulder", "Collared"], required: true },
-        { key: "fit", label: "Fit", options: ["Fitted", "Relaxed", "Cropped", "Oversized"], required: true },
+        { key: "fit", label: "Fit", options: ["Fitted", "Relaxed", "Cropped", "Oversized"] },
         { key: "sleeve", label: "Sleeves", options: ["Sleeveless", "Short", "Long"] },
         { key: "fabric", label: "Fabric", options: FABRICS },
       ];
@@ -191,7 +191,8 @@ export const ROLE_LABEL: Record<PairRole, string> = { top: "Tops", bottom: "Bott
 function partnerColors(anchorColor: string, profile?: Partial<StyleProfile>): { name: string; relation: "neutral" | "contrast" | "tonal" }[] {
   const avoid = new Set(profile?.avoidColors ?? []);
   const out: { name: string; relation: "neutral" | "contrast" | "tonal" }[] = [];
-  const add = (name: string, relation: "neutral" | "contrast" | "tonal") => { if (!avoid.has(name) && name !== anchorColor && !out.some((o) => o.name === name)) out.push({ name, relation }); };
+  // black and white always qualify — black-on-black or white-on-white is a deliberate tonal look
+  const add = (name: string, relation: "neutral" | "contrast" | "tonal") => { if (!avoid.has(name) && (name !== anchorColor || ["black", "white"].includes(name)) && !out.some((o) => o.name === name)) out.push({ name, relation: name === anchorColor ? "tonal" : relation }); };
   ["black", "white"].forEach((c) => add(c, "neutral"));
   partnerNeutrals(anchorColor).slice(0, 2).forEach((c) => add(c, "neutral"));
   complements(anchorColor).slice(0, 1).forEach((c) => add(c, "contrast"));
@@ -212,7 +213,9 @@ export function pairingOptions(anchor: Garment, role: PairRole, occasion: string
   for (const t of pool) {
     for (const c of colors) {
       const name = `${cap(c.name)} ${t.name}`;
-      const colourWhy = c.relation === "neutral"
+      const colourWhy = c.name === anchor.color
+        ? `${cap(c.name)} on ${c.name} makes one unbroken, elongating line`
+        : c.relation === "neutral"
         ? `${cap(c.name)} lets your ${anchor.color} piece lead`
         : c.relation === "contrast" ? `${cap(c.name)} and ${anchor.color} make a confident contrast` : `${cap(c.name)} keeps it tonal and soft`;
       const score = -Math.abs(t.formal - target) * 1.2 + (c.relation === "neutral" ? 1 : 0.4) + ((hashStr(name + anchor.id) % 100) / 100) * 0.6;
@@ -225,7 +228,18 @@ export function pairingOptions(anchor: Garment, role: PairRole, occasion: string
       });
     }
   }
-  return opts.sort((a, b) => b.score - a.score);
+  // order so the first screen shows different styles (and colours) side by side, not one style in five colours
+  opts.sort((a, b) => b.score - a.score);
+  const byStyle = new Map<string, (Option & { score: number })[]>();
+  for (const o of opts) { const k = o.id.split("|")[0]; byStyle.set(k, [...(byStyle.get(k) ?? []), o]); }
+  const lists = Array.from(byStyle.values());
+  const out: Option[] = [];
+  for (let round = 0; out.length < opts.length; round++) {
+    lists.forEach((l, i) => { const o = l[(round + i) % l.length]; if (round < l.length && !out.includes(o)) out.push(o); });
+    if (round > 20) break;
+  }
+  for (const o of opts) if (!out.includes(o)) out.push(o);
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -294,7 +308,7 @@ export function proportionTips(anchor: Garment, picks: Option[], profile?: Parti
 // Photo prompts — every garment image is a photorealistic product shot.
 // ---------------------------------------------------------------------------
 export function productPrompt(p: { name: string; fabric?: string; neckline?: string; fit?: string; silhouette?: string; length?: string; shadeHex?: string; detail?: string; category?: Category }) {
-  const bits = [p.name, p.fabric && !p.name.toLowerCase().includes(p.fabric.toLowerCase()) ? `in ${p.fabric}` : "", p.length ? `${p.length.toLowerCase()} length` : "", p.detail ? `with ${p.detail.toLowerCase()}` : "", p.shadeHex ? `colour close to ${p.shadeHex}` : ""].filter(Boolean).join(", ");
+  const bits = [p.name, p.fabric && !p.name.toLowerCase().includes(p.fabric.toLowerCase()) ? `in ${p.fabric}` : "", p.length && !p.name.toLowerCase().includes(p.length.toLowerCase()) ? `${p.length.toLowerCase()} length` : "", p.detail ? `with ${p.detail.toLowerCase()}` : "", p.shadeHex ? `colour close to ${p.shadeHex}` : ""].filter(Boolean).join(", ");
   const shoe = p.category && ["sneakers", "loafers", "heels", "boots", "flats", "sandals", "juttis", "kolhapuris"].includes(p.category);
   const acc = p.category && ["earrings", "jhumkas", "necklace", "bangles", "ring", "watch", "bag", "clutch", "potli", "belt", "scarf", "sunglasses"].includes(p.category);
   const staging = shoe ? "a single pair shown at a three-quarter angle" : acc ? "a single item, centred" : "shown on an invisible ghost mannequin, front view";

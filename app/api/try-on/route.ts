@@ -4,7 +4,7 @@ import { parseImageDataUrl, rateLimit, sameOrigin } from "@/lib/server/guard";
 import type { TryOnRequest } from "@/lib/tryon/types";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /**
  * Start a virtual try-on job. The personal photograph is relayed to the configured
@@ -33,11 +33,15 @@ export async function POST(req: Request) {
   const { provider, reason } = selectProvider(request);
   if (!provider) {
     if (reason === "needs-garment-image") {
-      return NextResponse.json({ mode: "unsupported", reason: "The configured try-on provider needs a photo of the garment. Use a look built around a photographed garment, or add REPLICATE_API_TOKEN for text-guided try-on." });
+      return NextResponse.json({ mode: "unsupported", reason: "The try-on service needs a garment photo, and none was available for this piece." });
     }
     return NextResponse.json({ mode: "demo", reason: "No virtual try-on provider is configured on the server." });
   }
   try {
+    if ("sync" in provider && (provider as { sync?: boolean }).sync) {
+      const image = await (provider as unknown as { run(r: TryOnRequest): Promise<string> }).run(request);
+      return NextResponse.json({ mode: "live", provider: provider.name, providerLabel: provider.label, image });
+    }
     const id = await provider.start(request);
     return NextResponse.json({ mode: "live", provider: provider.name, providerLabel: provider.label, jobId: `${provider.name}:${id}` });
   } catch (e) {

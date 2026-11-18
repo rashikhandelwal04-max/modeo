@@ -1,10 +1,11 @@
 import "server-only";
 import { fashn } from "./providers/fashn";
 import { replicate } from "./providers/replicate";
+import { huggingface } from "./providers/huggingface";
 import type { TryOnProvider, TryOnRequest } from "./types";
 
 /** Provider registry — add new try-on services here; nothing else needs to change. */
-export const PROVIDERS: TryOnProvider[] = [fashn, replicate];
+export const PROVIDERS: TryOnProvider[] = [fashn, huggingface, replicate];
 
 export function providerByName(name: string) {
   return PROVIDERS.find((p) => p.name === name);
@@ -19,6 +20,6 @@ export function selectProvider(req: TryOnRequest): { provider?: TryOnProvider; r
   return { provider: p };
 }
 
-export function defaultProviderName(): "fashn" | "replicate" | null {
-  return (PROVIDERS.find((p) => p.configured())?.name as "fashn" | "replicate") ?? null;
+export function defaultProviderName(): "fashn" | "replicate" | "huggingface" | null {
+  return PROVIDERS.find((p) => p.configured())?.name ?? null;
 }

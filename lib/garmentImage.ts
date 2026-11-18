@@ -50,3 +50,11 @@ export function useGarmentImage(prompt: string | undefined, enabled: boolean) {
   }, [prompt, enabled]);
   return state;
 }
+
+/**
+ * Free, key-less photorealistic image generation (Pollinations, Flux model). The browser
+ * loads the image directly. Used whenever no Replicate token is configured.
+ */
+export function freeImageUrl(prompt: string, w = 768, h = 1024) {
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${w}&height=${h}&seed=${hashStr(prompt) % 100000}&nologo=true&model=flux`;
+}

@@ -7,7 +7,7 @@ import PhotoSetup from "@/components/PhotoSetup";
 import { Icon, Modal } from "@/components/ui";
 import { useApp } from "@/lib/store/state";
 import { getImage, putImage, useImage } from "@/lib/store/images";
-import { genImageId, getGarmentImage } from "@/lib/garmentImage";
+import { freeImageUrl, genImageId, getGarmentImage } from "@/lib/garmentImage";
 import { productPrompt } from "@/lib/stylist";
 import { lookDescription } from "@/lib/styling/engine";
 import { downloadDataUrl, resizeDataUrl } from "@/lib/image";
@@ -37,8 +37,9 @@ function Compare({ before, after }: { before: string; after: string }) {
 async function garmentImageFor(p: Piece): Promise<string | undefined> {
   if (p.garment.imageId) return getImage(p.garment.imageId);
   if (p.garment.imageUrl?.startsWith("https://")) return p.garment.imageUrl;
-  const prompt = productPrompt({ ...p.garment, shadeHex: p.garment.colorHex });
-  return (await getImage(genImageId(prompt))) ?? (await getGarmentImage(prompt)) ?? undefined;
+  const prompt = productPrompt({ ...p.garment, shadeHex: undefined });
+  // Replicate-generated (cached) product photo, otherwise the free photoreal image service (https URL)
+  return (await getImage(genImageId(prompt))) ?? (await getGarmentImage(prompt)) ?? freeImageUrl(prompt);
 }
 
 function FittingRoom() {
@@ -65,6 +66,7 @@ function FittingRoom() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error ?? "Try-on failed");
     if (data.mode !== "live") throw new Error(data.reason ?? "Try-on is not available");
+    if (data.image) return data.image as string; // synchronous providers return the result directly
     const started = Date.now();
     while (!cancelled.current && Date.now() - started < 180_000) {
       await new Promise((r) => setTimeout(r, 2500));
@@ -86,7 +88,7 @@ function FittingRoom() {
       let current = await resizeDataUrl(person, 1024, 0.9);
       const wearables = look.pieces.filter((p) => WEARABLE.includes(roleOf(p.garment.category))).sort((a, b) => WEARABLE.indexOf(roleOf(a.garment.category)) - WEARABLE.indexOf(roleOf(b.garment.category)));
       const description = lookDescription({ ...look, pieces: look.pieces.filter((p) => !["jewellery", "bag", "accessory"].includes(p.role)) });
-      if (status?.tryOnProviders.fashn) {
+      if (status?.tryOnProviders.fashn || status?.tryOnProviders.huggingface) {
         // garment-image try-on, one garment at a time on the person's own photo
         for (const [i, p] of wearables.entries()) {
           setProgress(`${i + 1} / ${wearables.length} · ${p.garment.name}`);
@@ -138,7 +140,7 @@ function FittingRoom() {
         {!live && (
           <div className="demo-banner">
             <b>Demo mode</b>
-            <span>Real try-on needs a try-on service (FASHN or Replicate) on the server. When connected, your selected garments are fitted onto your photo while keeping your face, proportions, skin tone{pose ? "" : " and pose"}. Results are approximate.</span>
+            <span>No try-on service is connected on the server yet, so no try-on image can be generated. Add one of: FASHN_API_KEY, HF_TOKEN (free) or REPLICATE_API_TOKEN. Your garments are then fitted onto your photo, keeping your face, proportions and skin tone as closely as the service allows.</span>
           </div>
         )}
         {phase === "error" && <div className="demo-banner"><b>Try-on failed</b><span>{error}</span></div>}

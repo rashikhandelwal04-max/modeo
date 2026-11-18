@@ -11,6 +11,7 @@ import { cx } from "@/lib/util";
 export const NAV = [
   { href: "/home", label: "Home", icon: "home" },
   { href: "/studio", label: "Your Edit", icon: "sparkle" },
+  { href: "/edits", label: "Edits", icon: "bookmark" },
   { href: "/wardrobe", label: "Wardrobe", icon: "hanger" },
   { href: "/try-on", label: "Fitting Room", icon: "mirror" },
   { href: "/looks", label: "Collection", icon: "heart" },
@@ -56,7 +57,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {children}
 
       <nav className="bottomnav" aria-label="Quick">
-        {NAV.slice(0, 5).map((n) => (
+        {NAV.filter((n) => n.href !== "/edits").slice(0, 5).map((n) => (
           <Link key={n.href} href={n.href} className={cx(on(n.href) && "on")}><Icon name={n.icon} size={18} />{n.label === "Fitting Room" ? "Fitting" : n.label}</Link>
         ))}
       </nav>

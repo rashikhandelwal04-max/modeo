@@ -15,6 +15,7 @@ export async function GET() {
     tryOnProviders: {
       fashn: !!PROVIDERS.find((p) => p.name === "fashn")?.configured(),
       replicate: !!PROVIDERS.find((p) => p.name === "replicate")?.configured(),
+      huggingface: !!PROVIDERS.find((p) => p.name === "huggingface")?.configured(),
     },
     imageGen: imageGenConfigured(),
   };
