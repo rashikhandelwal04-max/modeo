@@ -103,8 +103,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .then((r) => r.json())
       .then(setStatus)
       .catch(() => {
-        // no MODEO server (e.g. static demo build) — style locally, never call /api
-        (window as unknown as { __MODEO_OFFLINE?: boolean }).__MODEO_OFFLINE = true;
+        // no MY GALA server (e.g. static demo build) — style locally, never call /api
+        (window as unknown as { __MYGALA_OFFLINE?: boolean }).__MYGALA_OFFLINE = true;
         setStatus({ claude: false, tryOn: null, tryOnProviders: { fashn: false, replicate: false } });
       });
   }, []);

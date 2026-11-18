@@ -1,4 +1,4 @@
-// Core domain types for MODEO.
+// Core domain types for MY GALA.
 
 export type Family = "western" | "indian" | "accessory";
 
@@ -139,7 +139,7 @@ export interface PhotoRecord {
   imageId: string;
   addedAt: number;
   consentProcessing: boolean;
-  consentTraining: boolean; // always separate; MODEO itself never trains
+  consentTraining: boolean; // always separate; MY GALA itself never trains
 }
 
 export interface IntegrationStatus {

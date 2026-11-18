@@ -24,7 +24,7 @@ export async function requestLooks(call: StyleCall): Promise<{ looks: Look[]; en
     seed: call.seed ?? Math.floor(Math.random() * 1e9),
   };
   try {
-    if ((window as unknown as { __MODEO_OFFLINE?: boolean }).__MODEO_OFFLINE) throw new Error("offline");
+    if ((window as unknown as { __MYGALA_OFFLINE?: boolean }).__MYGALA_OFFLINE) throw new Error("offline");
     const res = await fetch("/api/style", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (!res.ok) throw new Error(String(res.status));
     return await res.json();

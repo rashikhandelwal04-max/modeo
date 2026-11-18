@@ -14,7 +14,7 @@ import { requestLooks } from "@/lib/client";
 import { regeneratePiece, type EngineInput } from "@/lib/styling/engine";
 import { ATTRIBUTE_OPTIONS, CATEGORY_GROUPS, CATEGORIES, categoryLabel } from "@/lib/taxonomy";
 import { COLORS } from "@/lib/colors";
-import type { Look, WardrobeItem } from "@/lib/types";
+import type { Category, Look, WardrobeItem } from "@/lib/types";
 import { cx, uid } from "@/lib/util";
 
 const SAMPLE: [string, Partial<WardrobeItem>][] = [
@@ -43,6 +43,16 @@ function ItemVisual({ item }: { item: WardrobeItem }) {
 
 type Pending = { id: string; name: string };
 
+const RAIL: Record<string, Category[]> = {
+  Tops: ["shirt", "tshirt", "top", "camisole", "tank", "knit", "blouse"],
+  Bottoms: ["trousers", "jeans", "shorts", "skirt"],
+  "Dresses & sets": ["dress", "jumpsuit"],
+  Layers: ["blazer", "jacket", "coat"],
+  Desi: ["saree", "saree-blouse", "kurta", "kurti", "lehenga", "salwar-suit", "palazzo", "churidar", "dupatta", "ethnic-jacket", "indo-western"],
+  Shoes: ["sneakers", "loafers", "heels", "boots", "flats", "sandals", "juttis", "kolhapuris"],
+  Accessories: ["earrings", "jhumkas", "necklace", "bangles", "ring", "watch", "bag", "clutch", "potli", "belt", "scarf", "sunglasses"],
+};
+
 export default function Wardrobe() {
   const app = useApp();
   const { wardrobe, addWardrobe, updateWardrobe, removeWardrobe, status, profile, toast, saveLook, set } = app;
@@ -57,10 +67,12 @@ export default function Wardrobe() {
   const [adding, setAdding] = useState(false);
   const [desc, setDesc] = useState("");
   const [panel, setPanel] = useState<{ look?: Look; slot?: string } | null>(null);
+  const [rail, setRail] = useState<string>("All");
 
   const filtered = useMemo(
     () =>
       wardrobe.filter((w) => {
+        if (rail !== "All" && !RAIL[rail].includes(w.category)) return false;
         if (f.category) {
           const group = CATEGORY_GROUPS.find((g) => g.label === f.category);
           if (group ? !group.items.includes(w.category) : w.category !== f.category) return false;
@@ -71,7 +83,7 @@ export default function Wardrobe() {
         if (f.style && !w.style?.includes(f.style)) return false;
         return true;
       }),
-    [wardrobe, f],
+    [wardrobe, f, rail],
   );
 
   const colorsInUse = Array.from(new Set(wardrobe.map((w) => w.color)));
@@ -139,11 +151,19 @@ export default function Wardrobe() {
   const current = open ? wardrobe.find((w) => w.id === open.id) ?? open : null;
 
   return (
-    <div className="fade-in">
-      <div className="page-head">
+    <main className="closet fade-in">
+      <nav className="closet-rail" aria-label="Closet sections">
+        {["All", ...Object.keys(RAIL)].map((r) => (
+          <button key={r} className={cx(rail === r && "on")} onClick={() => setRail(r)}>
+            {r} <small>{r === "All" ? wardrobe.length : wardrobe.filter((w) => RAIL[r].includes(w.category)).length}</small>
+          </button>
+        ))}
+      </nav>
+      <div className="closet-main">
+      <div className="page-head" style={{ marginBottom: 6 }}>
         <div>
-          <div className="eyebrow">My Wardrobe · {wardrobe.length} pieces</div>
-          <h1 className="display h-lg">Everything you <em>own.</em></h1>
+          <div className="eyebrow">My Wardrobe · {wardrobe.length} pieces · your actual clothes</div>
+          <h1 className="display h-lg">The <em>closet.</em></h1>
         </div>
         <div className="row">
           <button className="btn ghost" onClick={() => setAdding((v) => !v)}><Icon name="pen" /> Describe a piece</button>
@@ -161,7 +181,8 @@ export default function Wardrobe() {
         </div>
       )}
 
-      <div className="filters" style={{ marginBottom: 20 }}>
+      <div className="rod" aria-hidden />
+      <div className="filters" style={{ marginBottom: 26 }}>
         <span className="eyebrow">Filter</span>
         <select className="select" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} aria-label="Category">
           <option value="">All categories</option>
@@ -194,7 +215,7 @@ export default function Wardrobe() {
       {wardrobe.length === 0 && pending.length === 0 ? (
         <div className="empty" style={{ minHeight: 360, alignContent: "center" }}>
           <div className="display h-md">Your digital wardrobe starts here.</div>
-          <p className="small muted" style={{ maxWidth: "50ch", margin: 0 }}>Upload photos of your clothes — several at once. {status?.claude ? "MODEO's vision model identifies category, colour, fabric, pattern, fit, season and occasion; you can correct anything." : "Colour is detected on your device; add ANTHROPIC_API_KEY to enable automatic garment recognition."}</p>
+          <p className="small muted" style={{ maxWidth: "50ch", margin: 0 }}>Upload photos of your clothes — several at once. {status?.claude ? "MY GALA's vision model identifies category, colour, fabric, pattern, fit, season and occasion; you can correct anything." : "Colour is detected on your device; add ANTHROPIC_API_KEY to enable automatic garment recognition."}</p>
           <div className="row">
             <label className="btn" style={{ position: "relative" }}>Upload photos<input type="file" accept="image/*" multiple onChange={(e) => upload(e.target.files)} style={{ position: "absolute", inset: 0, opacity: 0 }} /></label>
             <button className="btn ghost" onClick={addSample}>Try a sample wardrobe</button>
@@ -249,7 +270,7 @@ export default function Wardrobe() {
 
             <hr className="rule" />
             <div className="between">
-              <h3 className="display h-md" style={{ margin: 0 }}>How else can I <em>wear this?</em></h3>
+              <h3 className="mega" style={{ margin: 0, fontSize: "clamp(30px, 3.4vw, 50px)" }}>How else can I <em style={{ textTransform: "none" }}>wear this?</em></h3>
               <div className="row">
                 <div className="seg" role="tablist" aria-label="Styling mode">
                   <button className={cx(mode === "wardrobe" && "on")} onClick={() => { setMode("wardrobe"); if (looks) howElse(current, "wardrobe"); }}>My wardrobe</button>
@@ -271,7 +292,7 @@ export default function Wardrobe() {
                     look={l}
                     index={i}
                     onTryOn={(look) => { set({ tryOn: { look, variants: looks } }); router.push("/try-on"); }}
-                    onSave={(look) => { saveLook(look); toast("Saved to your looks."); }}
+                    onSave={(look) => { saveLook(look); toast("Added to My Collection."); }}
                     onRegenPiece={(look, slot) => engineInput && setLooks(looks.map((x) => (x.id === look.id ? regeneratePiece(look, slot, engineInput, Date.now()) : x)))}
                     onOpenPanel={(look, slot) => setPanel({ look, slot })}
                   />
@@ -282,6 +303,7 @@ export default function Wardrobe() {
         )}
       </Drawer>
       {engineInput && <StylePanel open={!!panel} onClose={() => setPanel(null)} input={engineInput} initialLook={panel?.look} focusSlot={panel?.slot} onTryOn={(l) => { set({ tryOn: { look: l, variants: looks ?? [l] } }); router.push("/try-on"); }} />}
-    </div>
+      </div>
+    </main>
   );
 }

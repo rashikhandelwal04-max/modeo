@@ -2,6 +2,7 @@
 import { useRouter } from "next/navigation";
 import PhotoSetup from "@/components/PhotoSetup";
 import { useApp } from "@/lib/store/state";
+import { Monogram, Wordmark } from "@/components/brand";
 
 const GUIDES = [
   { t: "Full body visible", d: "M17 4 a3 3 0 1 0 0.1 0 M17 10 V28 M10 14 H24 M17 28 L12 42 M17 28 L22 42" },
@@ -21,13 +22,14 @@ export default function Welcome() {
   return (
     <div className="onb">
       <section className="onb-left">
-        <div className="between">
-          <div className="brand">MODEO</div>
+        <Monogram className="bigmono" size="100%" ink="var(--paper)" paper="var(--ink)" />
+        <div className="between" style={{ position: "relative" }}>
+          <span className="lockup"><Monogram size={52} ink="var(--paper)" paper="var(--ink)" /><Wordmark /></span>
           <div className="steps"><span className="on" /><span className={photo ? "on" : ""} /><span /></div>
         </div>
         <div className="stack" style={{ gap: 22 }}>
-          <div className="eyebrow" style={{ color: "#8c8a85" }}>Your wardrobe. Your style. Reimagined.</div>
-          <h1 className="display h-xl">Let&apos;s make this <em>personal.</em></h1>
+          <div className="eyebrow" style={{ color: "#8c8a85" }}>Your style. Your stage.</div>
+          <h1 className="mega h-xl">Let&apos;s make<br />this <em style={{ textTransform: "none" }}>personal.</em></h1>
           <p className="lede" style={{ color: "#cfccc5" }}>Upload a full-length photograph and see how different styles could look on you.</p>
         </div>
         <div className="stack" style={{ gap: 16 }}>

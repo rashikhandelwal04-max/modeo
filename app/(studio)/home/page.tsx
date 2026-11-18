@@ -1,86 +1,111 @@
 "use client";
 import Link from "next/link";
-import { useMemo } from "react";
 import { useRouter } from "next/navigation";
+import EditorialImage from "@/components/EditorialImage";
 import LookBoard from "@/components/LookBoard";
+import { Monogram } from "@/components/brand";
 import { Icon } from "@/components/ui";
 import { useApp } from "@/lib/store/state";
 import { useImage } from "@/lib/store/images";
-import { buildLook } from "@/lib/styling/engine";
-import { makeGarment, parseGarmentText } from "@/lib/parse";
-import { hashStr } from "@/lib/util";
+import { EDITS, IMAGES } from "@/lib/editorial";
+import type { SavedLook } from "@/lib/types";
+import { formatDate } from "@/lib/util";
 
-const ACTIONS = [
-  { t: "Style a garment", d: "Photo, link or a few words — four directions.", href: "/studio" },
-  { t: "Build an outfit", d: "Piece by piece, in an interactive panel.", href: "/studio?start=build" },
-  { t: "Explore my wardrobe", d: "New ways to wear what you already own.", href: "/wardrobe" },
-  { t: "Try a new aesthetic", d: "Old money, streetwear, Indian contemporary…", href: "/studio?start=aesthetic" },
-  { t: "Style for an occasion", d: "Work, wedding, date night, travel.", href: "/studio?start=occasion" },
-];
+function RecentCover({ s }: { s: SavedLook }) {
+  const img = useImage(s.tryOnImageId);
+  return img ? <img src={img} alt="" style={{ aspectRatio: "1/1.05", objectFit: "cover", width: "100%" }} /> : <LookBoard pieces={s.look.pieces} compact />;
+}
 
-const DAILY = ["Oversized black blazer", "Black saree with gold detailing", "Yellow midi skirt", "Beige trench coat", "Ivory chikankari kurta", "White linen shirt", "Burgundy satin slip dress"];
-
-export default function Home() {
-  const { wardrobe, saved, photo, profile, set } = useApp();
+export default function World() {
+  const { saved, wardrobe, photo } = useApp();
   const router = useRouter();
-  const avatar = useImage(photo?.imageId);
-  const today = new Date();
-  const daySeed = hashStr(today.toDateString());
-
-  const daily = useMemo(() => {
-    const candidates = wardrobe.filter((w) => !["footwear", "jewellery", "bag", "accessory"].includes(w.category));
-    const anchor = candidates.length ? candidates[daySeed % candidates.length] : makeGarment({ ...parseGarmentText(DAILY[daySeed % DAILY.length]), name: DAILY[daySeed % DAILY.length] });
-    const dirs = ["minimal", "contemporary", "casual", "bold"] as const;
-    return { anchor, owned: candidates.length > 0, look: buildLook({ anchor, wardrobe, profile }, dirs[daySeed % 4], new Set(), daySeed) };
-  }, [wardrobe, profile, daySeed]);
-
-  const openDaily = () => {
-    set({ studio: { anchor: daily.anchor, anchorOwned: daily.owned, looks: undefined } });
-    router.push("/studio");
-  };
+  const me = useImage(photo?.imageId);
+  const month = new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" });
 
   return (
-    <div className="home fade-in">
-      <section className="home-hero">
-        <div className="stack" style={{ gap: 14 }}>
-          <div className="eyebrow">{today.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</div>
-          <h1 className="display h-xl">What&apos;s the look <em>today?</em></h1>
-          <p className="lede">AI that styles what you own, not just what you can buy.</p>
+    <main className="fade-in">
+      {/* HERO */}
+      <section className="hero">
+        <div className="hero-copy">
+          <Monogram className="hero-mono-bg" size="100%" />
+          <div className="between" style={{ position: "relative" }}>
+            <span className="eyebrow" style={{ color: "var(--ink)" }}>MY GALA · Issue 01 · {month}</span>
+            <span className="eyebrow">A personal fashion universe</span>
+          </div>
+          <h1 className="mega hero-title" style={{ position: "relative" }}>
+            <span>Your style.</span>
+            <span className="l2 outline ink">Your stage.</span>
+          </h1>
+          <div className="hero-meta" style={{ position: "relative" }}>
+            <p className="lede" style={{ margin: 0 }}>Enter your own fashion universe. Discover new ways to dress, create your own edits and reimagine everything in your wardrobe.</p>
+            <Link href="/edits" className="btn big">Enter your edit <Icon name="arrow" /></Link>
+          </div>
         </div>
-        <nav className="actions" aria-label="Quick actions">
-          {ACTIONS.map((a, i) => (
-            <Link key={a.t} href={a.href} className="action">
-              <span className="num">{String(i + 1).padStart(2, "0")}</span>
-              <span><div className="t">{a.t}</div><div className="d">{a.d}</div></span>
-              <span className="arrow"><Icon name="arrow" size={18} /></span>
-            </Link>
-          ))}
-        </nav>
+        <div className="hero-visual">
+          <EditorialImage className="main" src={IMAGES.heroMain} alt="MY GALA campaign" fallback="Black satin slip dress" word="Stage" caption="The Statement Edit — look 04" position="50% 20%" />
+          {me ? (
+            <figure className="ed-img second"><img src={me} alt="You" style={{ filter: "grayscale(1)" }} /><figcaption>Starring: you</figcaption></figure>
+          ) : (
+            <EditorialImage className="second" src={IMAGES.heroSecond} alt="MY GALA campaign detail" fallback="Oversized black blazer" word="Style" position="50% 30%" />
+          )}
+          <span className="sticker">New<br />season<br />new you</span>
+          <span className="hand-tag">← this could be you</span>
+          <span className="issue">Campaign<br />MG / 01</span>
+        </div>
       </section>
 
-      <section className="home-visual">
-        <div className="between" style={{ padding: "18px 20px 0" }}>
-          <div>
-            <div className="eyebrow">Look of the day</div>
-            <div className="display" style={{ fontSize: 30, marginTop: 4 }}>{daily.look.title}</div>
-          </div>
-          <button className="btn ghost sm" onClick={openDaily}>Style this</button>
-        </div>
-        <div style={{ flex: 1, minHeight: 330, cursor: "pointer" }} onClick={openDaily}>
-          <LookBoard pieces={daily.look.pieces} annotations={daily.look.annotations} className="fill" />
-        </div>
-        <div className="small muted" style={{ padding: "0 20px 14px" }}>
-          {daily.owned ? "Built around a piece from your wardrobe." : `Built around: ${daily.anchor.name.toLowerCase()}. Add your wardrobe to make this yours.`}
-        </div>
-        <div className="stat-row">
-          <Link href="/wardrobe" className="stat"><b>{wardrobe.length}</b><span className="tiny muted">pieces in wardrobe</span></Link>
-          <Link href="/looks" className="stat"><b>{saved.length}</b><span className="tiny muted">saved looks</span></Link>
-          <Link href={photo ? "/try-on" : "/profile"} className="stat" style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            {avatar ? <img src={avatar} alt="" style={{ width: 30, height: 40, objectFit: "cover" }} /> : <b>—</b>}
-            <span className="tiny muted">{photo ? "Your photo is ready for try-on" : "Add your photo for try-on"}</span>
+      <div className="marquee" aria-hidden>
+        <div>{Array.from({ length: 2 }).map((_, k) => (
+          <span key={k}>{["Your style.", "Your stage.", "The Daily Edit", "The Statement Edit", "The Classic Edit", "The Desi Edit", "Your Own Edit"].map((t, i) => <span key={i}>{i % 2 ? <em>{t}</em> : t} ✦</span>)}</span>
+        ))}</div>
+      </div>
+
+      {/* THE EDITS */}
+      <section className="edits-strip" aria-label="The Edits">
+        {EDITS.map((e) => (
+          <Link key={e.slug} href={`/edits/${e.slug}`} className={`edit-tile edit-theme-${e.slug}`}>
+            <EditorialImage src={IMAGES[e.image]} alt={e.title.join(" ")} fallback={e.fallback} word={e.title[0].replace("The ", "")} />
+            <span className="num">{e.number}</span>
+            <div className="stack-sm">
+              <h3>{e.title[0]}<br /><em>{e.title[1]}</em></h3>
+              <span className="small" style={{ opacity: 0.8 }}>{e.kicker}</span>
+              <span className="go">Open the edit <Icon name="arrow" size={14} /></span>
+            </div>
           </Link>
+        ))}
+      </section>
+
+      {/* RECENT CREATIONS */}
+      <section className="recent">
+        <div className="recent-head">
+          <div className="stack-sm">
+            <span className="eyebrow">Recent creations</span>
+            <h2 className="display h-md">Your <em>latest</em> looks.</h2>
+          </div>
+          <div className="stack-sm">
+            <span className="small muted">{saved.length} saved · {wardrobe.length} pieces in your wardrobe</span>
+            <div className="row">
+              <Link href="/studio" className="btn sm">Create a look</Link>
+              <Link href="/looks" className="link-btn">My Collection</Link>
+            </div>
+          </div>
+        </div>
+        <div className="recent-row">
+          {saved.length === 0 ? (
+            <div className="stack" style={{ padding: "28px clamp(16px,3vw,40px)", alignContent: "center" }}>
+              <p className="pull-quote" style={{ margin: 0, maxWidth: "20ch" }}>Your first look is waiting to be made.</p>
+              <span className="hand" style={{ fontSize: 24 }}>Start in the studio, or open an Edit →</span>
+            </div>
+          ) : (
+            saved.slice(0, 10).map((s) => (
+              <button key={s.id} className="recent-item" onClick={() => router.push("/looks")}>
+                <RecentCover s={s} />
+                <span className="cap"><b>{s.name}</b><span className="tiny muted">{formatDate(s.savedAt)}{s.collection ? ` · ${s.collection}` : ""}</span></span>
+              </button>
+            ))
+          )}
         </div>
       </section>
-    </div>
+    </main>
   );
 }

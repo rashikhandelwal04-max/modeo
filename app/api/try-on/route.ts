@@ -8,7 +8,7 @@ export const maxDuration = 60;
 
 /**
  * Start a virtual try-on job. The personal photograph is relayed to the configured
- * provider for this request only — MODEO's server never writes it to disk or a database.
+ * provider for this request only — MY GALA's server never writes it to disk or a database.
  */
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });

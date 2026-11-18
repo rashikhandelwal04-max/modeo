@@ -1,5 +1,5 @@
 /**
- * MODEO rule-based styling engine.
+ * MY GALA rule-based styling engine.
  *
  * Deterministic (seeded) and fully offline. It reasons about colour theory, proportion,
  * texture, formality, season, user preferences, learned affinity, repetition and

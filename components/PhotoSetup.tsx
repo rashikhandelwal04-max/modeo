@@ -91,12 +91,12 @@ export default function PhotoSetup({ onComplete, onSkip, submitLabel = "Enter my
             </label>
             <label className="check">
               <input type="checkbox" checked={process} onChange={(e) => setProcess(e.target.checked)} />
-              <span>I consent to MODEO processing this photo to create try-on previews. It is sent to the try-on provider only when I press <i>Generate</i>.</span>
+              <span>I consent to MY GALA processing this photo to create try-on previews. It is sent to the try-on provider only when I press <i>Generate</i>.</span>
             </label>
             <label className="check" style={{ opacity: 0.85 }}>
               <input type="checkbox" checked={training} onChange={(e) => setTraining(e.target.checked)} />
               <span className="small">
-                <b>Optional, separate:</b> allow my photo to be used to improve models in future. Off by default — MODEO does not currently train on any photographs, and this is never assumed.
+                <b>Optional, separate:</b> allow my photo to be used to improve models in future. Off by default — MY GALA does not currently train on any photographs, and this is never assumed.
               </span>
             </label>
             <PrivacyNote compact />

@@ -44,7 +44,7 @@ export async function POST(req: Request) {
   try {
     const res = await fetch(url, {
       redirect: "follow",
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; MODEO-preview/1.0)", Accept: "text/html" },
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; MYGALA-preview/1.0)", Accept: "text/html" },
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return NextResponse.json({ error: `The store responded with ${res.status}. Try describing the garment instead.` }, { status: 502 });

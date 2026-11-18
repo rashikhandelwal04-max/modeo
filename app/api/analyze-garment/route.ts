@@ -8,7 +8,7 @@ export const maxDuration = 60;
 
 /**
  * Garment recognition. The image is forwarded to the vision model for this single request
- * and is not stored by MODEO.
+ * and is not stored by MY GALA.
  */
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });

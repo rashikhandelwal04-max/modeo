@@ -4,11 +4,11 @@ import { AppProvider } from "@/lib/store/state";
 import ToastHost from "@/components/ToastHost";
 
 export const metadata: Metadata = {
-  title: "MODEO — Your wardrobe. Your style. Reimagined.",
-  description: "MODEO is an AI personal stylist that styles what you own, not just what you can buy.",
+  title: "MY GALA — Your style. Your stage.",
+  description: "MY GALA — a personal fashion universe where you discover, create and reimagine your own style.",
 };
 
-export const viewport: Viewport = { themeColor: "#0f0f0f", width: "device-width", initialScale: 1 };
+export const viewport: Viewport = { themeColor: "#0b0b0b", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Jost:wght@300;400;500&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..800;1,6..96,400..800&family=Caveat:wght@400;500;600&family=Jost:wght@300;400;500;600&display=swap"
         />
       </head>
       <body>

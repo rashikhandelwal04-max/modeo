@@ -33,7 +33,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ looks, engine: "claude" });
     } catch (e) {
       console.error("[style] Claude failed, falling back to rules:", e instanceof Error ? e.message : e);
-      notice = "AI stylist unavailable just now — showing MODEO's offline rule-based styling.";
+      notice = "AI stylist unavailable just now — showing MY GALA's offline rule-based styling.";
     }
   }
   const looks = generateLooks({

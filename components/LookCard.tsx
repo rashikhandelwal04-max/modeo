@@ -91,7 +91,7 @@ export default function LookCard({
               <Icon name="heart" />
             </button>
           )}
-          <button className="icon-btn" style={{ width: 44, height: 44 }} title="More like this" aria-label="More like this" onClick={() => { feedback(look, 1); toast("Noted — MODEO will lean this way."); }}>
+          <button className="icon-btn" style={{ width: 44, height: 44 }} title="More like this" aria-label="More like this" onClick={() => { feedback(look, 1); toast("Noted — MY GALA will lean this way."); }}>
             <Icon name="thumbUp" />
           </button>
           <button className="icon-btn" style={{ width: 44, height: 44 }} title="Less like this" aria-label="Less like this" onClick={() => { feedback(look, -1); toast("Got it — fewer looks like this."); }}>

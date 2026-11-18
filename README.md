@@ -1,6 +1,6 @@
-# MODEO — AI personal fashion stylist
+# MY GALA — personal fashion universe
 
-> Your wardrobe. Your style. Reimagined.
+> YOUR STYLE. YOUR STAGE.
 
 A Next.js app that styles the clothes you **own**: personal photo onboarding, a Style Studio that
 returns four explained directions for any garment, an interactive "Style your …" panel with
@@ -26,7 +26,7 @@ cp .env.example .env.local
 
 | Variable | Enables |
 |---|---|
-| `ANTHROPIC_API_KEY` | Garment recognition from photos (vision) + AI styling by Claude (`claude-opus-5-5` by default, override with `MODEO_CLAUDE_MODEL`) |
+| `ANTHROPIC_API_KEY` | Garment recognition from photos (vision) + AI styling by Claude (`claude-opus-5-5` by default, override with `MY GALA_CLAUDE_MODEL`) |
 | `FASHN_API_KEY` | Real virtual try-on from a garment photo (FASHN) |
 | `REPLICATE_API_TOKEN` | Real, text-guided outfit try-on on your photo (Replicate, default `black-forest-labs/flux-kontext-pro`) |
 
@@ -91,7 +91,7 @@ UI components don't touch storage directly.
 
 ## Privacy & security
 
-- Explicit consent before any processing. Training use is a separate opt-in, and MODEO does not train on photos at all.
+- Explicit consent before any processing. Training use is a separate opt-in, and MY GALA does not train on photos at all.
 - Personal photos stay on the device. They are sent only to the try-on provider, only when you press Generate, and the server relays them without saving.
 - API keys are server-only. API routes check the request origin, rate-limit per IP (in-memory, so replace it in production), validate image
   payloads (type and size), and the URL reader blocks private and loopback addresses.

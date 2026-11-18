@@ -10,7 +10,7 @@ import { familyOf, roleOf } from "../taxonomy";
 import { hexOf } from "../colors";
 import { rng, uid } from "../util";
 
-export const CLAUDE_MODEL = process.env.MODEO_CLAUDE_MODEL || "claude-opus-5-5";
+export const CLAUDE_MODEL = process.env.MYGALA_CLAUDE_MODEL || process.env.MODEO_CLAUDE_MODEL || "claude-opus-5-5";
 
 export function claudeConfigured() {
   return !!process.env.ANTHROPIC_API_KEY;
@@ -51,7 +51,7 @@ export async function analyzeGarmentImage(base64: string, mediaType: "image/jpeg
     max_tokens: 4000,
     output_config: { effort: "low", format: zodOutputFormat(GarmentSchema) },
     system:
-      "You are MODEO's garment-recognition model. Identify the single main garment or accessory in the photo for a digital wardrobe. Support Western and Indian clothing (sarees, kurtas, lehengas, dupattas, etc.). Only report fabric when it is reasonably identifiable; never guess wildly. Do not describe any person in the image beyond the garment.",
+      "You are MY GALA's garment-recognition model. Identify the single main garment or accessory in the photo for a digital wardrobe. Support Western and Indian clothing (sarees, kurtas, lehengas, dupattas, etc.). Only report fabric when it is reasonably identifiable; never guess wildly. Do not describe any person in the image beyond the garment.",
     messages: [
       {
         role: "user",
@@ -121,7 +121,7 @@ export async function styleWithClaude(req: StyleRequest): Promise<Look[]> {
     model: CLAUDE_MODEL,
     max_tokens: 16000,
     output_config: { effort: "medium", format: zodOutputFormat(LookSchema) },
-    system: `You are MODEO, a world-class personal stylist with an editorial eye (think fashion-magazine creative director) who is equally fluent in Western and Indian dress.
+    system: `You are MY GALA, a world-class personal stylist with an editorial eye (think fashion-magazine creative director) who is equally fluent in Western and Indian dress.
 Create exactly four distinct looks around the anchor garment, one per direction: minimal (minimal & sophisticated), casual (casual & effortless), bold (bold & experimental), contemporary (contemporary & fashion-forward).
 Rules:
 - Every look must be complete: clothing needed to wear the anchor, footwear, accessories/jewellery and (where relevant) a bag.

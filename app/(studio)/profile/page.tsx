@@ -40,11 +40,11 @@ export default function Profile() {
     .map(([k, v]) => ({ k, v, label: CATALOG_BY_KEY.get(k)?.name ?? wardrobe.find((w) => "own:" + w.id === k)?.name ?? k.replace(/^ai:/, "").replace(/-/g, " ") }));
 
   return (
-    <div className="fade-in">
+    <main className="page fade-in">
       <div className="page-head">
         <div>
           <div className="eyebrow">My Profile</div>
-          <h1 className="display h-lg">Your style <em>identity.</em></h1>
+          <h1 className="mega h-lg">Your style <em style={{ textTransform: "none" }}>identity.</em></h1>
         </div>
       </div>
 
@@ -59,7 +59,7 @@ export default function Profile() {
                 <>
                   <span className="tiny muted">Added {formatDate(photo.addedAt)} · stored on this device only</span>
                   <label className="check small"><input type="checkbox" checked={photo.consentProcessing} onChange={(e) => setPhoto({ ...photo, consentProcessing: e.target.checked })} /><span>Allow processing for virtual try-on</span></label>
-                  <label className="check small"><input type="checkbox" checked={photo.consentTraining} onChange={(e) => setPhoto({ ...photo, consentTraining: e.target.checked })} /><span>Separately allow use for model training (MODEO does not currently train on photos)</span></label>
+                  <label className="check small"><input type="checkbox" checked={photo.consentTraining} onChange={(e) => setPhoto({ ...photo, consentTraining: e.target.checked })} /><span>Separately allow use for model training (MY GALA does not currently train on photos)</span></label>
                   <div className="row">
                     <button className="btn sm" onClick={() => setReplacing(true)}>Replace</button>
                     <button className="btn ghost sm" onClick={async () => { await setPhoto(null); toast("Your photograph has been deleted from this device."); }}><Icon name="trash" size={13} /> Delete photo</button>
@@ -118,7 +118,7 @@ export default function Profile() {
             <span className="tiny muted">Comfort preferences are shared with the AI stylist when it is connected; the offline rule-based stylist only uses fit, colour and budget.</span>
           </section>
           <section className="section">
-            <h3>What MODEO has learned</h3>
+            <h3>What MY GALA has learned</h3>
             <span className="small muted">From {saved.length} saved looks and your 👍 / 👎 feedback. These weights nudge future recommendations.</span>
             {learned.length ? (
               <div className="chips">
@@ -149,6 +149,6 @@ export default function Profile() {
           </div>
         </div>
       </Modal>
-    </div>
+    </main>
   );
 }
