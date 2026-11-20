@@ -71,11 +71,14 @@ const BASE_COLORS = COLORS.filter((c) => c.name !== "pearl");
 /** Stage C: the selected clothes shown together on a realistic generated model (Replicate). */
 function ModelView({ anchor, picks, shoe, acc, pose }: { anchor: Garment; picks: Option[]; shoe: Option | null; acc: Option[]; pose?: string }) {
   const [who, setWho] = useState<"woman" | "man">("woman");
+  const [show, setShow] = useState(false); // generated only when asked for
   const items = [anchor.name, ...picks.map((p) => p.name), shoe?.name, ...acc.map((a) => a.name)].filter(Boolean).map((x) => x!.toLowerCase()).join(", ");
   const prompt = `Full-length photorealistic fashion campaign photograph of a stylish ${who === "woman" ? "female" : "male"} model wearing exactly these clothes: ${items}. ${pose ? `Pose: ${pose.toLowerCase()}.` : "Standing naturally."} Minimalist light grey studio, soft natural light, realistic fabric and fit, sharp focus, head to toe in frame, no text.`;
   return (
     <figure className="model-view">
-      <GarmentPhoto g={{ name: "The outfit on a model" }} prompt={prompt} className="model-photo" />
+      {show ? <GarmentPhoto g={{ name: "The outfit on a model" }} prompt={prompt} className="model-photo" /> : (
+        <button className="gphoto model-photo model-ask" onClick={() => setShow(true)}><span className="eyebrow" style={{ color: "var(--ink)" }}>See it on a model</span></button>
+      )}
       <figcaption>
         <span className="eyebrow">On a model</span>
         <span className="seg"><button className={cx(who === "woman" && "on")} onClick={() => setWho("woman")}>Woman</button><button className={cx(who === "man" && "on")} onClick={() => setWho("man")}>Man</button></span>
@@ -98,6 +101,7 @@ export default function YourEdit() {
   const [roleIdx, setRoleIdx] = useState(0);
   const [picks, setPicks] = useState<Partial<Record<PairRole, Option>>>({});
   const [filters, setFilters] = useState<{ color?: string; shape?: string }>({});
+  const [limit, setLimit] = useState(4); // show 4 options first; each is a generated photo
   const [shoe, setShoe] = useState<Option | null>(null);
   const [extras, setExtras] = useState<{ accessories: boolean; footwear: boolean; poses: boolean }>({ accessories: false, footwear: false, poses: false });
   const [acc, setAcc] = useState<Option[]>([]);
@@ -118,14 +122,15 @@ export default function YourEdit() {
   const shapeKey: "neckline" | "silhouette" | "fit" = role === "bottom" ? "silhouette" : role === "layer" ? "fit" : "neckline";
   const shapes = Array.from(new Set(options.map((o) => o[shapeKey]).filter(Boolean))) as string[];
   const colours = Array.from(new Set(options.map((o) => o.color)));
-  const shown = options.filter((o) => (!filters.color || o.color === filters.color) && (!filters.shape || o[shapeKey] === filters.shape)).slice(0, filters.color || filters.shape ? 12 : 8);
+  const shown = options.filter((o) => (!filters.color || o.color === filters.color) && (!filters.shape || o[shapeKey] === filters.shape)).slice(0, limit);
   const shoes = anchor ? footwearOptions(anchor, occasion) : [];
   const accs = anchor ? accessoryOptions(anchor, occasion) : [];
   const chosen = Object.values(picks).filter(Boolean) as Option[];
   const tips = anchor ? proportionTips(anchor, chosen, profile) : [];
   const missing = missingInfo({ ...attrs, color: attrs.color }, !!imageId || !!ownedId);
 
-  useEffect(() => { setFilters({}); }, [roleIdx, step]);
+  useEffect(() => { setFilters({}); setLimit(4); }, [roleIdx, step]);
+  useEffect(() => { setLimit(4); }, [filters.color, filters.shape]);
   useEffect(() => { if (step === "outfit" && !shoe && shoes[0]) setShoe(shoes[0]); }, [step, shoe, shoes]);
 
   // ---------------- actions ----------------
@@ -343,6 +348,9 @@ export default function YourEdit() {
                 </button>
               ))}
             </div>
+            {shown.length < options.filter((o) => (!filters.color || o.color === filters.color) && (!filters.shape || o[shapeKey] === filters.shape)).length && (
+              <button className="btn ghost sm" style={{ justifySelf: "start" }} onClick={() => setLimit((l) => l + 4)}>Show more</button>
+            )}
             <div className="row">
               <button className="btn" disabled={!picks[role]} onClick={() => (roleIdx < roles.length - 1 ? setRoleIdx(roleIdx + 1) : setStep("outfit"))}>{roleIdx < roles.length - 1 ? "Next" : "See the outfit"} <Icon name="arrow" size={14} /></button>
               {role === "layer" && <button className="link-btn" onClick={() => setStep("outfit")}>Skip the layer</button>}

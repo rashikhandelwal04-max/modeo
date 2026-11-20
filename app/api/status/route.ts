@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { CLAUDE_MODEL, claudeConfigured } from "@/lib/ai/claude";
 import { defaultProviderName, PROVIDERS } from "@/lib/tryon";
 import { imageGenConfigured, imageProvider } from "@/lib/imagegen";
+import { blobEnabled } from "@/lib/blobcache";
 import type { IntegrationStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ export async function GET() {
     },
     imageGen: imageGenConfigured(),
     imageProvider: imageProvider(),
+    imageLibrary: blobEnabled(),
   };
   return NextResponse.json(body);
 }

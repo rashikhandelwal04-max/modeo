@@ -158,4 +158,5 @@ export interface IntegrationStatus {
   /** photorealistic garment image generation available */
   imageGen?: boolean;
   imageProvider?: "replicate" | "cloudflare" | null;
+  imageLibrary?: boolean;
 }

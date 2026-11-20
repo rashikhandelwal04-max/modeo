@@ -63,7 +63,7 @@ async function cloudflare(prompt: string): Promise<string> {
     headers: { Authorization: `Bearer ${cfToken()}`, "Content-Type": "application/json" },
     // flux-1-schnell on Workers AI accepts only `prompt` and `steps` (a `seed` field is rejected with error 5006).
     // Each call is randomly seeded by Cloudflare, so "New photo" still returns a different image.
-    body: JSON.stringify({ prompt: prompt.slice(0, 2000), steps: 6 }),
+    body: JSON.stringify({ prompt: prompt.slice(0, 2000), steps: 4 }), // the model default; fewer steps = more free images per day
     signal: AbortSignal.timeout(55000),
   });
   const data = (await res.json().catch(() => ({}))) as { success?: boolean; result?: { image?: string }; errors?: { code?: number; message?: string }[] };
