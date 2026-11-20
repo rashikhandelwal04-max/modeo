@@ -555,3 +555,24 @@ a:hover > .ed-img img, .ed-img:hover img { transform: scale(1.025); }
 @media (hover: none) { .gphoto-new { opacity: 1; } }
 .model-photo { aspect-ratio: 2 / 3; }
 .model-ask { border: 1px dashed var(--grey-2); cursor: pointer; display: grid; place-items: center; width: 100%; }
+
+/* Fit */
+.shape-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; max-width: 960px; margin: 0 auto; width: 100%; }
+.shape { display: grid; justify-items: center; gap: 8px; padding: 18px 10px 16px; border: 1px solid var(--line); background: #fff; cursor: pointer; text-align: center; transition: border-color 0.2s; }
+.shape:hover, .shape.on { border-color: var(--ink); }
+.shape svg { width: 46px; height: 96px; color: var(--ink); }
+.shape b { font-family: var(--display); font-weight: 500; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; }
+.shape span { font-size: 11px; color: var(--grey); line-height: 1.35; }
+.fit-card { display: grid; gap: 14px; }
+.fit-lead { margin: 0; font-size: 15px; font-weight: 300; }
+.fit-rules { list-style: none; margin: 0; padding: 0; display: grid; border-top: 1px solid var(--line); }
+.fit-rules li { display: grid; grid-template-columns: 34px 1fr; column-gap: 10px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.fit-rules .n { grid-row: span 2; font-family: var(--display); font-size: 11px; color: var(--grey); letter-spacing: 0.1em; padding-top: 2px; }
+.fit-rules b { font-family: var(--display); font-weight: 500; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; }
+.fit-rules li > span:last-child { font-size: 13px; color: var(--ink-2); margin-top: 3px; }
+.fit-easy { margin: 0; font-size: 12.5px; color: var(--grey); }
+.fit-card.compact .fit-rules li { padding: 10px 0; }
+.for-you { font-size: 10.5px; color: var(--ink); padding: 0 6px; line-height: 1.35; }
+.for-you::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--red); margin-right: 6px; vertical-align: 1px; }
+.suggest { display: grid; gap: 6px; padding: 14px 16px; background: var(--soft); font-size: 13px; justify-items: start; }
+@media (max-width: 1000px) { .shape-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

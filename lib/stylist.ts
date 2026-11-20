@@ -9,6 +9,7 @@
 import { analogous, complements, hexOf, hexToHsl, isNeutral, partnerNeutrals, rgbToHex, hexToRgb, cap } from "./colors";
 import { roleOf } from "./taxonomy";
 import type { Category, Garment, GarmentAttributes, StyleProfile } from "./types";
+import { anchorTagsFor, bodyScore, fitOf } from "./fit";
 import { hashStr } from "./util";
 
 // ---------------------------------------------------------------------------
@@ -130,47 +131,68 @@ export interface Option {
   silhouette?: string;
   fabric?: string;
   why: string;
+  /** why this suits the person's figure, when it does */
+  forYou?: string;
 }
 
-interface Template { name: string; category: Category; neckline?: string; fit?: string; silhouette?: string; fabric?: string; formal: number; note: string }
+interface Template { name: string; category: Category; neckline?: string; fit?: string; silhouette?: string; fabric?: string; formal: number; note: string; tags: string[]; occasions?: string[] }
 
 const TOPS: Template[] = [
-  { name: "fitted T-shirt", category: "tshirt", neckline: "Crew", fit: "Fitted", fabric: "cotton jersey", formal: 1, note: "a clean, easy base" },
-  { name: "halter-neck top", category: "top", neckline: "Halter", fit: "Fitted", fabric: "rib knit", formal: 3, note: "the halter shows the shoulders and draws the eye up" },
-  { name: "off-shoulder top", category: "top", neckline: "Off-shoulder", fit: "Fitted", fabric: "cotton", formal: 3, note: "a wide neckline balances a fuller skirt" },
-  { name: "square-neck fitted top", category: "top", neckline: "Square", fit: "Fitted", fabric: "stretch cotton", formal: 2, note: "the square neck frames the collarbone" },
-  { name: "crisp button-down shirt", category: "shirt", neckline: "Collared", fit: "Relaxed", fabric: "cotton poplin", formal: 3, note: "tucked in, it sharpens the whole look" },
-  { name: "satin camisole", category: "camisole", neckline: "V-neck", fit: "Fitted", fabric: "satin", formal: 3, note: "a little sheen for the evening" },
-  { name: "V-neck fine knit", category: "knit", neckline: "V-neck", fit: "Fitted", fabric: "fine merino", formal: 2, note: "the V lengthens the neck" },
-  { name: "cropped ribbed tank", category: "tank", neckline: "Crew", fit: "Cropped", fabric: "rib knit", formal: 1, note: "cropped to show the waistband" },
+  { name: "fitted T-shirt", category: "tshirt", neckline: "Crew", fit: "Fitted", fabric: "cotton jersey", formal: 1, note: "a clean, easy base", tags: ["fitted", "tuck"] },
+  { name: "halter-neck top", category: "top", neckline: "Halter", fit: "Fitted", fabric: "rib knit", formal: 3, note: "shows the shoulders and draws the eye up", tags: ["fitted", "shoulderdetail", "cropped"] },
+  { name: "off-shoulder top", category: "top", neckline: "Off-shoulder", fit: "Fitted", fabric: "cotton", formal: 3, note: "a wide neckline that frames the collarbone", tags: ["shoulderdetail", "fitted", "tuck"] },
+  { name: "square-neck fitted top", category: "top", neckline: "Square", fit: "Fitted", fabric: "stretch cotton", formal: 2, note: "frames the collarbone", tags: ["fitted", "shoulderdetail", "tuck"] },
+  { name: "crisp button-down shirt", category: "shirt", neckline: "Collared", fit: "Relaxed", fabric: "cotton poplin", formal: 3, note: "tucked in, it sharpens everything", tags: ["relaxed", "tuck"] },
+  { name: "satin camisole", category: "camisole", neckline: "V-neck", fit: "Fitted", fabric: "satin", formal: 3, note: "a little sheen for the evening", tags: ["vneck", "fluid", "tuck"] },
+  { name: "V-neck fine knit", category: "knit", neckline: "V-neck", fit: "Fitted", fabric: "fine merino", formal: 2, note: "the V lengthens the neck", tags: ["vneck", "fitted", "tuck"] },
+  { name: "cropped ribbed tank", category: "tank", neckline: "Crew", fit: "Cropped", fabric: "rib knit", formal: 1, note: "cropped to show the waistband", tags: ["cropped", "fitted"] },
+  { name: "wrap top", category: "top", neckline: "V-neck", fit: "Fitted", fabric: "jersey", formal: 2.5, note: "ties at the waist", tags: ["wrap", "vneck", "fitted"] },
+  { name: "peplum top", category: "top", neckline: "Square", fit: "Fitted", fabric: "crepe", formal: 3, note: "a flare from the waist", tags: ["peplum", "fitted"] },
+  { name: "boat-neck long-sleeve top", category: "top", neckline: "Boat", fit: "Fitted", fabric: "fine jersey", formal: 2, note: "a wide, elegant neckline", tags: ["boatneck", "fitted", "tuck"] },
+  { name: "mock-neck ribbed top", category: "knit", neckline: "Mock", fit: "Fitted", fabric: "rib knit", formal: 2.5, note: "sleek and minimal", tags: ["fitted", "tuck"] },
+  { name: "puff-sleeve blouse", category: "blouse", neckline: "Round", fit: "Relaxed", fabric: "cotton voile", formal: 2.5, note: "soft volume at the shoulder", tags: ["puff", "shoulderdetail", "relaxed"] },
+  { name: "silk shirt", category: "shirt", neckline: "Collared", fit: "Relaxed", fabric: "silk", formal: 3.5, note: "fluid and polished", tags: ["fluid", "relaxed", "tuck"] },
+  { name: "one-shoulder top", category: "top", neckline: "One-shoulder", fit: "Fitted", fabric: "crepe", formal: 3.5, note: "an asymmetric, modern line", tags: ["shoulderdetail", "fitted"] },
+  { name: "cropped cardigan", category: "knit", neckline: "V-neck", fit: "Cropped", fabric: "fine knit", formal: 2, note: "buttoned up and worn as a top", tags: ["cropped", "vneck"] },
+  { name: "draped cowl-neck top", category: "top", neckline: "Cowl", fit: "Relaxed", fabric: "satin", formal: 3.5, note: "soft drape at the neckline", tags: ["fluid", "vneck"] },
+  { name: "longline tunic shirt", category: "shirt", neckline: "Collared", fit: "Relaxed", fabric: "linen", formal: 2, note: "easy and breezy", tags: ["longline", "relaxed", "fluid"] },
 ];
 const BOTTOMS: Template[] = [
-  { name: "high-waisted wide-leg trousers", category: "trousers", silhouette: "Wide-leg", fabric: "wool crepe", formal: 4, note: "a high waist makes the legs read longer" },
-  { name: "straight-leg jeans", category: "jeans", silhouette: "Straight", fabric: "denim", formal: 1, note: "relaxed and grounded" },
-  { name: "A-line midi skirt", category: "skirt", silhouette: "A-line", fabric: "cotton", formal: 2, note: "the flare balances a fitted top" },
-  { name: "pencil skirt", category: "skirt", silhouette: "Pencil", fabric: "wool", formal: 4, note: "a sharp, tailored line" },
-  { name: "bias-cut satin midi skirt", category: "skirt", silhouette: "Slip", fabric: "satin", formal: 3, note: "fluid fabric moves as you walk" },
-  { name: "tailored shorts", category: "shorts", silhouette: "Tailored", fabric: "linen", formal: 2, note: "polished but easy" },
+  { name: "high-waisted wide-leg trousers", category: "trousers", silhouette: "Wide-leg", fabric: "wool crepe", formal: 4, note: "a long, fluid leg", tags: ["highwaist", "wideleg", "fulllength"] },
+  { name: "high-waisted straight-leg trousers", category: "trousers", silhouette: "Straight", fabric: "crepe", formal: 3.5, note: "clean and polished", tags: ["highwaist", "straight", "fulllength"] },
+  { name: "straight-leg jeans", category: "jeans", silhouette: "Straight", fabric: "denim", formal: 1, note: "relaxed and grounded", tags: ["straight", "highwaist"] },
+  { name: "wide-leg jeans", category: "jeans", silhouette: "Wide-leg", fabric: "denim", formal: 1.5, note: "easy volume", tags: ["wideleg", "highwaist", "fulllength"] },
+  { name: "skinny jeans", category: "jeans", silhouette: "Skinny", fabric: "denim", formal: 1, note: "a slim, sleek leg", tags: ["skinny"] },
+  { name: "A-line midi skirt", category: "skirt", silhouette: "A-line", fabric: "cotton", formal: 2.5, note: "the flare moves as you walk", tags: ["aline", "midcalf", "highwaist"] },
+  { name: "A-line knee-length skirt", category: "skirt", silhouette: "A-line", fabric: "crepe", formal: 2.5, note: "lighter and leg-lengthening", tags: ["aline", "highwaist"] },
+  { name: "pencil skirt", category: "skirt", silhouette: "Pencil", fabric: "wool", formal: 4, note: "a sharp, tailored line", tags: ["bodycon", "highwaist"] },
+  { name: "pleated midi skirt", category: "skirt", silhouette: "Pleated", fabric: "satin", formal: 3, note: "movement and texture", tags: ["pleated", "aline", "midcalf"] },
+  { name: "bias-cut satin slip skirt", category: "skirt", silhouette: "Slip", fabric: "satin", formal: 3, note: "fluid fabric that skims", tags: ["fluid", "highwaist"] },
+  { name: "tailored shorts", category: "shorts", silhouette: "Tailored", fabric: "linen", formal: 2, note: "polished but easy", tags: ["highwaist"] },
+  { name: "cigarette trousers", category: "trousers", silhouette: "Slim", fabric: "crepe", formal: 3.5, note: "a neat ankle-length line", tags: ["slim", "highwaist"] },
 ];
 const LAYERS: Template[] = [
-  { name: "tailored blazer", category: "blazer", fit: "Tailored", fabric: "wool", formal: 4, note: "structure over softness" },
-  { name: "cropped jacket", category: "jacket", fit: "Cropped", fabric: "tweed", formal: 3, note: "cropped to keep the waist visible" },
-  { name: "denim jacket", category: "jacket", fit: "Relaxed", fabric: "denim", formal: 1, note: "easy and casual" },
-  { name: "fine-knit cardigan", category: "knit", fit: "Fitted", fabric: "cashmere", formal: 2, note: "soft and light" },
-  { name: "trench coat", category: "coat", fit: "Longline", fabric: "cotton gabardine", formal: 3, note: "a long vertical line" },
+  { name: "tailored blazer", category: "blazer", fit: "Tailored", fabric: "wool", formal: 4, note: "structure over softness", tags: ["fitted"] },
+  { name: "cropped jacket", category: "jacket", fit: "Cropped", fabric: "tweed", formal: 3, note: "cropped to keep the waist visible", tags: ["cropped"] },
+  { name: "denim jacket", category: "jacket", fit: "Relaxed", fabric: "denim", formal: 1, note: "easy and casual", tags: ["relaxed"] },
+  { name: "fine-knit cardigan", category: "knit", fit: "Fitted", fabric: "cashmere", formal: 2, note: "soft and light", tags: ["vneck"] },
+  { name: "trench coat", category: "coat", fit: "Longline", fabric: "cotton gabardine", formal: 3, note: "a long vertical line", tags: ["longline", "belted"] },
+  { name: "belted wrap jacket", category: "jacket", fit: "Tailored", fabric: "wool blend", formal: 3.5, note: "defines the waist", tags: ["belted", "wrap"] },
 ];
 const BLOUSES: Template[] = [
-  { name: "sleeveless high-neck blouse", category: "saree-blouse", neckline: "High neck", fabric: "silk", formal: 4, note: "lets the drape be the hero" },
-  { name: "puff-sleeve blouse", category: "saree-blouse", neckline: "Round", fabric: "cotton silk", formal: 3, note: "soft and romantic" },
-  { name: "boat-neck elbow-sleeve blouse", category: "saree-blouse", neckline: "Boat", fabric: "silk", formal: 4, note: "classic and graceful" },
-  { name: "corset blouse", category: "saree-blouse", neckline: "Sweetheart", fabric: "satin", formal: 4, note: "structured and modern" },
-  { name: "crisp shirt-style blouse", category: "saree-blouse", neckline: "Collared", fabric: "cotton", formal: 3, note: "an instantly modern twist" },
+  { name: "sleeveless high-neck blouse", category: "saree-blouse", neckline: "High neck", fabric: "silk", formal: 4, note: "lets the drape be the hero", tags: ["fitted"] },
+  { name: "puff-sleeve blouse", category: "saree-blouse", neckline: "Round", fabric: "cotton silk", formal: 3, note: "soft and romantic", tags: ["puff", "shoulderdetail"] },
+  { name: "boat-neck elbow-sleeve blouse", category: "saree-blouse", neckline: "Boat", fabric: "silk", formal: 4, note: "classic and graceful", tags: ["boatneck"] },
+  { name: "corset blouse", category: "saree-blouse", neckline: "Sweetheart", fabric: "satin", formal: 4, note: "structured and modern", tags: ["fitted"] },
+  { name: "deep V-neck blouse", category: "saree-blouse", neckline: "V-neck", fabric: "silk", formal: 4, note: "lengthens the neckline", tags: ["vneck"] },
+  { name: "crisp shirt-style blouse", category: "saree-blouse", neckline: "Collared", fabric: "cotton", formal: 3, note: "an instantly modern twist", tags: ["relaxed"] },
 ];
 const INDIAN_BOTTOMS: Template[] = [
-  { name: "straight palazzo", category: "palazzo", silhouette: "Wide-leg", fabric: "cotton", formal: 2, note: "flowing and easy" },
-  { name: "fitted churidar", category: "churidar", silhouette: "Slim", fabric: "cotton", formal: 3, note: "a slim base for a long kurta" },
-  { name: "straight cigarette pants", category: "trousers", silhouette: "Straight", fabric: "crepe", formal: 3, note: "crisp and modern" },
-  { name: "straight-leg jeans", category: "jeans", silhouette: "Straight", fabric: "denim", formal: 1, note: "an easy fusion pairing" },
+  { name: "straight palazzo", category: "palazzo", silhouette: "Wide-leg", fabric: "cotton", formal: 2, note: "flowing and easy", tags: ["wideleg", "highwaist", "fulllength"] },
+  { name: "fitted churidar", category: "churidar", silhouette: "Slim", fabric: "cotton", formal: 3, note: "a slim base for a long kurta", tags: ["slim"] },
+  { name: "straight cigarette pants", category: "trousers", silhouette: "Straight", fabric: "crepe", formal: 3, note: "crisp and modern", tags: ["straight"] },
+  { name: "straight-leg jeans", category: "jeans", silhouette: "Straight", fabric: "denim", formal: 1, note: "an easy fusion pairing", tags: ["straight"] },
+  { name: "sharara", category: "palazzo", silhouette: "Flared", fabric: "georgette", formal: 4, note: "festive volume", tags: ["wideleg", "fulllength"] },
 ];
 
 /** The roles to fill, in order, for a given anchor garment. */
@@ -204,7 +226,9 @@ function partnerColors(anchorColor: string, profile?: Partial<StyleProfile>): { 
 const OCC_FORMAL: Record<string, number> = { "date night": 3, work: 3.5, party: 3.5, casual: 1.5, wedding: 4.5, festive: 4, specific: 2.5 };
 
 export function pairingOptions(anchor: Garment, role: PairRole, occasion: string | undefined, profile?: Partial<StyleProfile>): Option[] {
-  const pool = role === "top" ? (["palazzo", "churidar"].includes(anchor.category) ? [...TOPS.slice(0, 5), { name: "short kurti", category: "kurti" as Category, neckline: "Round", fit: "Relaxed", fabric: "block-print cotton", formal: 2, note: "an easy desi pairing" }] : TOPS)
+  const fit = fitOf(profile);
+  const aTags = anchorTagsFor(anchor);
+  const pool = role === "top" ? (["palazzo", "churidar"].includes(anchor.category) ? [...TOPS.slice(0, 8), { name: "short kurti", category: "kurti" as Category, neckline: "Round", fit: "Relaxed", fabric: "block-print cotton", formal: 2, note: "an easy desi pairing", tags: ["relaxed"] }] : TOPS)
     : role === "bottom" ? (["kurta", "kurti"].includes(anchor.category) ? INDIAN_BOTTOMS : BOTTOMS.filter((b) => b.category !== anchor.category || b.silhouette?.toLowerCase() !== anchor.silhouette?.toLowerCase()))
     : role === "layer" ? LAYERS : BLOUSES;
   const target = OCC_FORMAL[occasion ?? "specific"] ?? 2.5;
@@ -218,16 +242,24 @@ export function pairingOptions(anchor: Garment, role: PairRole, occasion: string
         : c.relation === "neutral"
         ? `${cap(c.name)} lets your ${anchor.color} piece lead`
         : c.relation === "contrast" ? `${cap(c.name)} and ${anchor.color} make a confident contrast` : `${cap(c.name)} keeps it tonal and soft`;
-      const score = -Math.abs(t.formal - target) * 1.2 + (c.relation === "neutral" ? 1 : 0.4) + ((hashStr(name + anchor.id) % 100) / 100) * 0.6;
+      const body = bodyScore(t.tags, fit, aTags);
+      // petite: a tonal/dark column reads taller
+      const column = fit.height === "petite" && (c.name === anchor.color || (["black", "navy", "charcoal", "chocolate"].includes(c.name) && ["black", "navy", "charcoal", "chocolate"].includes(anchor.color)));
+      const score = -Math.abs(t.formal - target) * 1.2 + (c.relation === "neutral" ? 1 : 0.4) + body.score * 1.4 + (column ? 0.8 : 0) + ((hashStr(name + anchor.id) % 100) / 100) * 0.6;
+      const forYou = column ? "One colour head to toe — reads taller" : body.forYou;
       opts.push({
         id: `${t.name}|${c.name}`.replace(/\s+/g, "-"),
         role, category: t.category, name, color: c.name, colorHex: hexOf(c.name),
         neckline: t.neckline, fit: t.fit, silhouette: t.silhouette, fabric: t.fabric,
         why: `${colourWhy}; ${t.note}.`,
+        forYou: body.score > 0 || column ? forYou : undefined,
         score,
       });
     }
   }
+  // drop clearly unsuitable shapes for this figure when there are plenty of alternatives
+  const best = opts.filter((o) => o.score > -2.5);
+  if (best.length >= 12) opts.splice(0, opts.length, ...best);
   // order so the first screen shows different styles (and colours) side by side, not one style in five colours
   opts.sort((a, b) => b.score - a.score);
   const byStyle = new Map<string, (Option & { score: number })[]>();
@@ -266,13 +298,18 @@ export function footwearOptions(anchor: Garment, occasion: string | undefined): 
 }
 
 export function accessoryOptions(anchor: Garment, occasion: string | undefined): Option[] {
-  const indian = ["saree", "lehenga", "kurta", "kurti", "salwar-suit"].includes(anchor.category);
-  const list: [string, Category, string][] = indian
-    ? [["gold jhumka earrings", "jhumkas", "gold"], ["pearl choker necklace", "necklace", "pearl"], ["embroidered potli bag", "potli", "gold"], ["stacked gold bangles", "bangles", "gold"]]
-    : occasion === "work"
-      ? [["structured black leather handbag", "bag", "black"], ["slim gold hoop earrings", "earrings", "gold"], ["slim black leather belt", "belt", "black"], ["minimal gold watch", "watch", "gold"]]
-      : [["small black shoulder bag", "bag", "black"], ["gold hoop earrings", "earrings", "gold"], ["fine gold chain necklace", "necklace", "gold"], ["black sunglasses", "sunglasses", "black"]];
-  return list.map(([n, c, color]) => ({ id: n.replace(/\s+/g, "-"), role: "accessory" as const, category: c, name: cap(n), color, colorHex: hexOf(color), why: "Optional finishing touch." }));
+  const indian = ["saree", "lehenga", "kurta", "kurti", "salwar-suit", "palazzo", "churidar"].includes(anchor.category);
+  const silverish = ["white", "silver grey", "grey", "charcoal", "cobalt", "sky blue", "lavender", "navy", "black"].includes(anchor.color);
+  const m = silverish && !indian ? "silver" : "gold";
+  const L: Record<string, [string, Category, string][]> = {
+    work: [[`small ${m} stud earrings`, "earrings", m], [`thin ${m} hoop earrings`, "earrings", m], [`delicate ${m} pendant necklace`, "necklace", m], ["classic leather-strap watch", "watch", "chocolate"], ["structured black leather tote bag", "bag", "black"], ["slim black leather belt", "belt", "black"]],
+    "date night": [[`${m} drop earrings`, "earrings", m], ["pearl drop earrings", "earrings", "pearl"], [`fine ${m} chain necklace`, "necklace", m], [`${m} cuff bracelet`, "bangles", m], ["small black satin clutch", "clutch", "black"], ["mini black leather shoulder bag", "bag", "black"]],
+    party: [[`statement ${m} earrings`, "earrings", m], ["crystal drop earrings", "earrings", "silver"], [`layered ${m} chain necklaces`, "necklace", m], [`chunky ${m} cuff`, "bangles", m], [`${m} metallic clutch`, "clutch", m], ["black mini bag with chain strap", "bag", "black"]],
+    casual: [[`small ${m} hoop earrings`, "earrings", m], [`${m} huggie earrings`, "earrings", m], [`dainty ${m} necklace`, "necklace", m], ["tan leather crossbody bag", "bag", "camel"], ["canvas tote bag", "bag", "ivory"], ["black sunglasses", "sunglasses", "black"]],
+    festive: [["gold jhumka earrings", "jhumkas", "gold"], ["kundan chandbali earrings", "jhumkas", "gold"], ["oxidised silver jhumkas", "jhumkas", "silver"], ["pearl choker necklace", "necklace", "pearl"], ["temple gold necklace", "necklace", "gold"], ["stacked gold bangles", "bangles", "gold"], ["embroidered potli bag", "potli", "gold"]],
+  };
+  const key = indian || occasion === "wedding" || occasion === "festive" ? "festive" : occasion && L[occasion] ? occasion : "casual";
+  return L[key].map(([n, c, color]) => ({ id: n.replace(/\s+/g, "-"), role: "accessory" as const, category: c, name: cap(n), color, colorHex: hexOf(color), why: "Optional finishing touch." }));
 }
 
 // ---------------------------------------------------------------------------

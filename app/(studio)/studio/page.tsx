@@ -8,6 +8,9 @@ import { useRouter } from "next/navigation";
 import GarmentPhoto from "@/components/GarmentPhoto";
 import EditorialImage from "@/components/EditorialImage";
 import { Icon } from "@/components/ui";
+import FitSummary from "@/components/FitSummary";
+import { BodyShapeIcon } from "@/components/BodyShape";
+import { BODY_SHAPES, fitOf, fitSummary, modelDescription, suggestedBottom, type BodyShape } from "@/lib/fit";
 import { useApp } from "@/lib/store/state";
 import { putImage } from "@/lib/store/images";
 import { dominantColor, fileToDataUrl, resizeDataUrl } from "@/lib/image";
@@ -58,7 +61,7 @@ function describe(a: Partial<GarmentAttributes>): string {
   return cap(text);
 }
 
-type Step = "body" | "intent" | "piece" | "garment" | "pair" | "outfit";
+type Step = "body" | "shape" | "fit" | "intent" | "piece" | "garment" | "pair" | "outfit";
 
 const PIECE_TYPES: { cat: Category; label: string }[] = [
   { cat: "skirt", label: "Skirt" }, { cat: "trousers", label: "Trousers" }, { cat: "jeans", label: "Jeans" }, { cat: "dress", label: "Dress" },
@@ -70,10 +73,11 @@ const BASE_COLORS = COLORS.filter((c) => c.name !== "pearl");
 
 /** Stage C: the selected clothes shown together on a realistic generated model (Replicate). */
 function ModelView({ anchor, picks, shoe, acc, pose }: { anchor: Garment; picks: Option[]; shoe: Option | null; acc: Option[]; pose?: string }) {
+  const { profile } = useApp();
   const [who, setWho] = useState<"woman" | "man">("woman");
   const [show, setShow] = useState(false); // generated only when asked for
   const items = [anchor.name, ...picks.map((p) => p.name), shoe?.name, ...acc.map((a) => a.name)].filter(Boolean).map((x) => x!.toLowerCase()).join(", ");
-  const prompt = `Full-length photorealistic fashion campaign photograph of a stylish ${who === "woman" ? "female" : "male"} model wearing exactly these clothes: ${items}. ${pose ? `Pose: ${pose.toLowerCase()}.` : "Standing naturally."} Minimalist light grey studio, soft natural light, realistic fabric and fit, sharp focus, head to toe in frame, no text.`;
+  const prompt = `Full-length photorealistic fashion campaign photograph of ${modelDescription(fitOf(profile), who)}, wearing exactly these clothes: ${items}. ${pose ? `Pose: ${pose.toLowerCase()}.` : "Standing naturally."} Minimalist light grey studio, soft natural light, realistic fabric and fit, sharp focus, head to toe in frame, no text.`;
   return (
     <figure className="model-view">
       {show ? <GarmentPhoto g={{ name: "The outfit on a model" }} prompt={prompt} className="model-photo" /> : (
@@ -137,8 +141,10 @@ export default function YourEdit() {
   const saveBody = (skip?: boolean) => {
     const hc = parseFloat(h), wk = parseFloat(w);
     set({ profile: { ...profile, askedBody: true, heightCm: !skip && hc > 90 && hc < 230 ? hc : profile.heightCm, weightKg: !skip && wk > 25 && wk < 250 ? wk : profile.weightKg } });
-    setStep(anchor && chosen.length ? "outfit" : "intent");
+    setStep(skip ? (anchor && chosen.length ? "outfit" : "intent") : "shape");
   };
+  const pickShape = (id: BodyShape) => { set({ profile: { ...profile, bodyShape: id } }); setStep("fit"); };
+  const afterFit = () => setStep(anchor && chosen.length ? "outfit" : "intent");
   const fromText = () => {
     const p = normalise(parseGarmentText(text), text);
     setAttrs(p);
@@ -193,7 +199,7 @@ export default function YourEdit() {
   // ---------------- render ----------------
   return (
     <main className="stylist fade-in">
-      {step !== "body" && (
+      {!["body", "shape", "fit"].includes(step) && (
         <nav className="st-steps" aria-label="Progress">
           {["Occasion", "Your piece", "Pairing", "Outfit"].map((l, i) => {
             const idx = i === 0 ? 0 : i + 1;
@@ -213,6 +219,32 @@ export default function YourEdit() {
             <label className="field"><span>Weight (kg)</span><input className="input" inputMode="decimal" placeholder="e.g. 58" value={w} onChange={(e) => setW(e.target.value)} /></label>
           </div>
           <div className="row"><button className="btn" onClick={() => saveBody()}>Continue</button><button className="link-btn" onClick={() => saveBody(true)}>Skip</button></div>
+        </section>
+      )}
+
+      {/* ---------- BODY SHAPE (optional) ---------- */}
+      {step === "shape" && (
+        <section className="st-panel">
+          <button className="back" onClick={() => setStep("body")}><Icon name="back" size={14} /> Back</button>
+          <h1 className="display h-lg center">Which looks most like you?</h1>
+          <p className="muted small center" style={{ margin: 0 }}>Just a starting point for the cuts we suggest. Choose the closest.</p>
+          <div className="shape-grid">
+            {[...BODY_SHAPES, { id: "unsure" as BodyShape, label: "Not sure", hint: "We'll go by height" }].map((b) => (
+              <button key={b.id} className={cx("shape", profile.bodyShape === b.id && "on")} onClick={() => pickShape(b.id)}>
+                <BodyShapeIcon shape={b.id} />
+                <b>{b.label}</b>
+                <span>{b.hint}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ---------- YOUR FIT SUMMARY ---------- */}
+      {step === "fit" && (
+        <section className="st-panel narrow">
+          <FitSummary profile={profile} />
+          <div className="row"><button className="btn" onClick={afterFit}>Start styling <Icon name="arrow" size={14} /></button><button className="link-btn" onClick={() => setStep("shape")}>Change shape</button></div>
         </section>
       )}
 
@@ -302,6 +334,18 @@ export default function YourEdit() {
               )}
             </div>
 
+            {["trousers", "jeans", "palazzo", "skirt"].includes(attrs.category) && (() => {
+              const sug = suggestedBottom(fitOf(profile));
+              if (!sug) return null;
+              const parts = [sug.rise, attrs.category === "skirt" ? undefined : sug.fit, sug.length].filter(Boolean) as string[];
+              return (
+                <div className="suggest">
+                  <span className="eyebrow">Suggested for you · {fitSummary(fitOf(profile)).headline}</span>
+                  <span>{parts.join(" · ")}{sug.colourHint ? ` · ${sug.colourHint}` : ""} — {sug.why}</span>
+                  <button className="link-btn" onClick={() => setAttrs((a) => ({ ...a, rise: sug.rise ?? a.rise, fit: attrs.category === "skirt" ? a.fit : sug.fit ?? a.fit, length: sug.length ?? a.length }))}>Use these</button>
+                </div>
+              );
+            })()}
             {questionsFor(attrs.category).map((q) => (
               <div className="q" key={q.key}>
                 <span className="eyebrow">{q.label} {missing.includes(q.label.toLowerCase()) && <i className="need">needed</i>}</span>
@@ -345,6 +389,7 @@ export default function YourEdit() {
                 <button key={o.id} className={cx("opt", picks[role]?.id === o.id && "on")} onClick={() => setPicks((p) => ({ ...p, [role]: o }))}>
                   <GarmentPhoto g={optionToGarment(o)} />
                   <span className="opt-name">{o.name}</span>
+                  {o.forYou && <span className="for-you">For you · {o.forYou}</span>}
                 </button>
               ))}
             </div>
@@ -404,9 +449,9 @@ export default function YourEdit() {
 
           {tips.length > 0 && (
             <div className="advice">
-              <span className="eyebrow">Stylist notes{profile.heightCm ? ` · ${profile.heightCm} cm` : ""}</span>
+              <span className="eyebrow">Stylist notes · {fitSummary(fitOf(profile)).headline}</span>
               <ul className="why">{tips.map((t) => <li key={t}>{t}</li>)}</ul>
-              {!profile.heightCm && <button className="link-btn" onClick={() => setStep("body")}>Add your height for proportion tips</button>}
+              <button className="link-btn" style={{ justifySelf: "start" }} onClick={() => setStep(profile.heightCm ? "shape" : "body")}>{profile.heightCm ? "Update your fit" : "Add your height and shape for tailored advice"}</button>
             </div>
           )}
         </section>

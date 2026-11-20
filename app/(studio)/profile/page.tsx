@@ -4,6 +4,9 @@ import { useRouter } from "next/navigation";
 import PhotoSetup from "@/components/PhotoSetup";
 import PrivacyNote from "@/components/PrivacyNote";
 import { Icon, Modal } from "@/components/ui";
+import FitSummary from "@/components/FitSummary";
+import { BodyShapeIcon } from "@/components/BodyShape";
+import { BODY_SHAPES } from "@/lib/fit";
 import { useApp } from "@/lib/store/state";
 import { useImage } from "@/lib/store/images";
 import { AESTHETICS, ATTRIBUTE_OPTIONS, CATEGORY_GROUPS } from "@/lib/taxonomy";
@@ -86,6 +89,15 @@ export default function Profile() {
               <label className="field"><span>Height (cm)</span><input className="input" inputMode="decimal" value={profile.heightCm ?? ""} onChange={(e) => up({ heightCm: parseFloat(e.target.value) || undefined, askedBody: true })} /></label>
               <label className="field"><span>Weight (kg)</span><input className="input" inputMode="decimal" value={profile.weightKg ?? ""} onChange={(e) => up({ weightKg: parseFloat(e.target.value) || undefined, askedBody: true })} /></label>
             </div>
+          </section>
+          <section className="section">
+            <h3>Body shape</h3>
+            <div className="shape-grid" style={{ margin: 0 }}>
+              {BODY_SHAPES.map((b) => (
+                <button key={b.id} className={cx("shape", profile.bodyShape === b.id && "on")} onClick={() => up({ bodyShape: b.id })}><BodyShapeIcon shape={b.id} /><b>{b.label}</b></button>
+              ))}
+            </div>
+            <FitSummary profile={profile} compact />
           </section>
           <section className="section">
             <h3>Aesthetics</h3>

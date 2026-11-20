@@ -141,6 +141,7 @@ export interface StyleProfile {
   heightCm?: number;
   weightKg?: number;
   askedBody?: boolean;
+  bodyShape?: "hourglass" | "pear" | "apple" | "rectangle" | "inverted" | "unsure";
 }
 
 export interface PhotoRecord {
